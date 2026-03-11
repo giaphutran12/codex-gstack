@@ -1,6 +1,6 @@
 ---
 name: gstack-browse
-version: 2.0.0
+version: 0.1.0
 description: |
   Fast web browsing via persistent headless Chromium daemon. Navigate to any URL,
   read page content, click elements, fill forms, run JavaScript, take screenshots,
@@ -13,7 +13,7 @@ allowed-tools:
 
 ---
 
-# Browse v2: Persistent Browser for Claude Code
+# gstack-browse: Persistent Browser for Claude Code
 
 Persistent headless Chromium daemon. First call auto-starts the server (~3s).
 Every subsequent call: ~100-200ms. Auto-shuts down after 30 min idle.
