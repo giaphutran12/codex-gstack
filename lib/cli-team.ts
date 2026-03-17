@@ -8,9 +8,8 @@
  *   set <key> <value>       Set a team setting (admin-only)
  */
 
-import { resolveSyncConfig, isSyncConfigured, getTeamConfig, getAuthTokens } from './sync-config';
-import { pullTable } from './sync';
-import { isTokenExpired } from './auth';
+import { resolveSyncConfig, isSyncConfigured } from './sync-config';
+import { pullTable, getValidToken as getValidTokenFromSync } from './sync';
 
 // --- Types ---
 
@@ -22,24 +21,17 @@ interface TeamMember {
 
 // --- Helpers ---
 
-async function getValidToken(): Promise<{ token: string; config: ReturnType<typeof resolveSyncConfig> } | null> {
+async function getValidTokenAndConfig(): Promise<{ token: string; config: ReturnType<typeof resolveSyncConfig> } | null> {
   const config = resolveSyncConfig();
   if (!config) {
     console.error('Team sync not configured. Run: gstack sync setup');
     return null;
   }
-
-  const token = config.auth.access_token;
+  const token = await getValidTokenFromSync(config);
   if (!token) {
-    console.error('Not authenticated. Run: gstack sync setup');
+    console.error('Not authenticated or token expired. Run: gstack sync setup');
     return null;
   }
-
-  if (config.auth.expires_at && isTokenExpired(config.auth.expires_at)) {
-    console.error('Auth token expired. Run: gstack sync setup');
-    return null;
-  }
-
   return { token, config };
 }
 
@@ -128,24 +120,21 @@ export function formatMembersTable(members: Record<string, unknown>[]): string {
   const lines: string[] = [];
   lines.push('');
   lines.push('Team Members');
-  lines.push('═'.repeat(60));
+  lines.push('═'.repeat(50));
   lines.push(
     '  ' +
     'Email / User ID'.padEnd(35) +
-    'Role'.padEnd(12) +
-    'Joined'
+    'Role'
   );
-  lines.push('─'.repeat(60));
+  lines.push('─'.repeat(50));
 
   for (const m of members) {
     const who = String(m.email || m.user_id || 'unknown').slice(0, 33).padEnd(35);
-    const role = String(m.role || 'member').padEnd(12);
-    // team_members doesn't have created_at, so use a placeholder
-    const joined = '—';
-    lines.push(`  ${who}${role}${joined}`);
+    const role = String(m.role || 'member');
+    lines.push(`  ${who}${role}`);
   }
 
-  lines.push('─'.repeat(60));
+  lines.push('─'.repeat(50));
   lines.push(`  ${members.length} member${members.length === 1 ? '' : 's'}`);
   lines.push('');
   return lines.join('\n');
@@ -154,7 +143,7 @@ export function formatMembersTable(members: Record<string, unknown>[]): string {
 // --- Subcommands ---
 
 async function cmdCreate(slug: string, name: string): Promise<void> {
-  const auth = await getValidToken();
+  const auth = await getValidTokenAndConfig();
   if (!auth) return;
 
   const { config } = auth;
@@ -195,7 +184,7 @@ async function cmdMembers(): Promise<void> {
 }
 
 async function cmdSet(key: string, value: string): Promise<void> {
-  const auth = await getValidToken();
+  const auth = await getValidTokenAndConfig();
   if (!auth) return;
 
   const { config } = auth;

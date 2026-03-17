@@ -67,7 +67,7 @@ async function refreshToken(supabaseUrl: string, refreshToken: string, anonKey: 
 }
 
 /** Get a valid access token, refreshing if needed. */
-async function getValidToken(config: SyncConfig): Promise<string | null> {
+export async function getValidToken(config: SyncConfig): Promise<string | null> {
   if (!isTokenExpired(config.auth)) {
     return config.auth.access_token;
   }
