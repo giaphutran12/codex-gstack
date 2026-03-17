@@ -35,7 +35,7 @@ Claude: "Photo upload" is not the feature. The real job is helping
         web, and draft the listing automatically? That's 10 stars.
         "Upload a photo" is 3 stars. Which are we building?
 
-You:    /plan-design-review https://staging.myapp.com
+You:    /plan-design-review
 Claude: Design Score: B  |  AI Slop Score: C
         "Upload flow looks like a default Bootstrap form."
         Top fix: custom drag-drop zone with preview grid.
