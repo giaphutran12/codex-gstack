@@ -172,9 +172,7 @@ Project type: {web app / dashboard / marketing site / etc.}
 After compiling the report, persist the review result:
 
 ```bash
-eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
-mkdir -p ~/.gstack/projects/$SLUG
-echo '{"skill":"plan-design-review","timestamp":"TIMESTAMP","status":"STATUS","design_score":"GRADE","ai_slop_score":"GRADE","mode":"MODE"}' >> ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl
+~/.claude/skills/gstack/bin/gstack-review-log '{"skill":"plan-design-review","timestamp":"TIMESTAMP","status":"STATUS","design_score":"GRADE","ai_slop_score":"GRADE","mode":"MODE"}'
 ```
 
 Substitute values from the report:

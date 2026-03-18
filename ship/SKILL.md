@@ -180,10 +180,7 @@ You are running the `/ship` workflow. This is a **non-interactive, fully automat
 After completing the review, read the review log and config to display the dashboard.
 
 ```bash
-eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
-cat ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl 2>/dev/null || echo "NO_REVIEWS"
-echo "---CONFIG---"
-~/.claude/skills/gstack/bin/gstack-config get skip_eng_review 2>/dev/null || echo "false"
+~/.claude/skills/gstack/bin/gstack-review-read
 ```
 
 Parse the output. Find the most recent entry for each skill (plan-ceo-review, plan-eng-review, plan-design-review, design-review-lite). Ignore entries with timestamps older than 7 days. For Design Review, show whichever is more recent between `plan-design-review` (full visual audit) and `design-review-lite` (code-level check). Append "(FULL)" or "(LITE)" to the status to distinguish. Display:
@@ -217,8 +214,7 @@ If the Eng Review is NOT "CLEAR":
 
 1. **Check for a prior override on this branch:**
    ```bash
-   eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
-   grep '"skill":"ship-review-override"' ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl 2>/dev/null || echo "NO_OVERRIDE"
+   ~/.claude/skills/gstack/bin/gstack-review-read | grep '"skill":"ship-review-override"' || echo "NO_OVERRIDE"
    ```
    If an override exists, display the dashboard and note "Review gate previously accepted — continuing." Do NOT ask again.
 
@@ -231,8 +227,7 @@ If the Eng Review is NOT "CLEAR":
 
 3. **If the user chooses A or C,** persist the decision so future `/ship` runs on this branch skip the gate:
    ```bash
-   eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
-   echo '{"skill":"ship-review-override","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","decision":"USER_CHOICE"}' >> ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl
+   ~/.claude/skills/gstack/bin/gstack-review-log '{"skill":"ship-review-override","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","decision":"USER_CHOICE"}'
    ```
    Substitute USER_CHOICE with "ship_anyway" or "not_relevant".
 
@@ -671,9 +666,7 @@ eval $(~/.claude/skills/gstack/bin/gstack-diff-scope <base> 2>/dev/null)
 6. **Log the result** for the Review Readiness Dashboard:
 
 ```bash
-eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
-mkdir -p ~/.gstack/projects/$SLUG
-echo '{"skill":"design-review-lite","timestamp":"TIMESTAMP","status":"STATUS","findings":N,"auto_fixed":M}' >> ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl
+~/.claude/skills/gstack/bin/gstack-review-log '{"skill":"design-review-lite","timestamp":"TIMESTAMP","status":"STATUS","findings":N,"auto_fixed":M}'
 ```
 
 Substitute: TIMESTAMP = ISO 8601 datetime, STATUS = "clean" if 0 findings or "issues_found", N = total findings, M = auto-fixed count.
