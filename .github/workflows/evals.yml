@@ -10,6 +10,11 @@ concurrency:
 jobs:
   evals:
     runs-on: ubicloud-standard-2
+    container:
+      image: ghcr.io/${{ github.repository }}/ci:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -44,21 +49,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: oven-sh/setup-bun@v2
-
-      - name: Cache bun dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.bun/install/cache
-          key: bun-${{ hashFiles('bun.lockb') }}
-          restore-keys: bun-
-
-      - run: bun install
+      # Restore pre-installed node_modules from Docker image (~1s vs ~15s install)
+      # If lockfile changed since image was built, fall back to fresh install
+      - name: Restore deps
+        run: |
+          if diff -q /opt/node_modules_cache/.package-lock.json package.json >/dev/null 2>&1; then
+            cp -al /opt/node_modules_cache node_modules
+          else
+            bun install
+          fi
 
       - run: bun run build
-
-      - name: Install Claude CLI
-        run: npm i -g @anthropic-ai/claude-code
 
       - name: Run ${{ matrix.suite.name }}
         env:
@@ -78,6 +79,11 @@ jobs:
 
   report:
     runs-on: ubicloud-standard-2
+    container:
+      image: ghcr.io/${{ github.repository }}/ci:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     needs: evals
     if: always() && github.event_name == 'pull_request'
     timeout-minutes: 5
@@ -129,7 +135,7 @@ jobs:
           $(echo -e "$SUITE_LINES")
 
           ---
-          *12x ubicloud-standard-2 ($0.0008/min each) | Wall clock ≈ slowest suite*"
+          *12x ubicloud-standard-2 (Docker: pre-baked toolchain + deps) | wall clock ≈ slowest suite*"
 
           if [ "$FAILED" -gt 0 ]; then
             FAILURES=""
