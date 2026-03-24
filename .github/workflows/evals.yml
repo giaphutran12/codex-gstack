@@ -10,6 +10,7 @@ concurrency:
 
 env:
   IMAGE: ghcr.io/${{ github.repository }}/ci
+  EVALS_TIER: gate
 
 jobs:
   # Build Docker image with pre-baked toolchain (cached — only rebuilds on Dockerfile/lockfile change)
@@ -87,10 +88,8 @@ jobs:
             file: test/skill-e2e-review.test.ts
           - name: e2e-workflow
             file: test/skill-e2e-workflow.test.ts
-            allow_failure: true  # /ship + /setup-browser-cookies are env-dependent
           - name: e2e-routing
             file: test/skill-routing-e2e.test.ts
-            allow_failure: true  # LLM routing is non-deterministic
           - name: e2e-codex
             file: test/codex-e2e.test.ts
           - name: e2e-gemini
