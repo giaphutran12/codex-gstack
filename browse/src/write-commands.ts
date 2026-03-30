@@ -11,6 +11,49 @@ import { validateNavigationUrl } from './url-validation';
 import * as fs from 'fs';
 import * as path from 'path';
 import { TEMP_DIR, isPathWithin } from './platform';
+import { modifyStyle, undoModification, resetModifications, getModificationHistory } from './cdp-inspector';
+
+// Security: Path validation for screenshot output
+const SAFE_DIRECTORIES = [TEMP_DIR, process.cwd()];
+
+function validateOutputPath(filePath: string): void {
+  const resolved = path.resolve(filePath);
+  const isSafe = SAFE_DIRECTORIES.some(dir => isPathWithin(resolved, dir));
+  if (!isSafe) {
+    throw new Error(`Path must be within: ${SAFE_DIRECTORIES.join(', ')}`);
+  }
+}
+
+/** Common selectors for page clutter removal */
+const CLEANUP_SELECTORS = {
+  ads: [
+    'ins.adsbygoogle', '[id^="google_ads"]', '[id^="div-gpt-ad"]',
+    'iframe[src*="doubleclick"]', 'iframe[src*="googlesyndication"]',
+    '[class*="ad-banner"]', '[class*="ad-wrapper"]', '[class*="ad-container"]',
+    '[data-ad]', '[data-ad-slot]', '[class*="sponsored"]',
+    '.ad', '.ads', '.advert', '.advertisement',
+  ],
+  cookies: [
+    '[class*="cookie-consent"]', '[class*="cookie-banner"]', '[class*="cookie-notice"]',
+    '[id*="cookie-consent"]', '[id*="cookie-banner"]', '[id*="cookie-notice"]',
+    '[class*="consent-banner"]', '[class*="consent-modal"]',
+    '[class*="gdpr"]', '[id*="gdpr"]',
+    '[class*="CookieConsent"]', '[id*="CookieConsent"]',
+    '#onetrust-consent-sdk', '.onetrust-pc-dark-filter',
+    '[class*="cc-banner"]', '[class*="cc-window"]',
+  ],
+  sticky: [
+    // Select fixed/sticky positioned elements (except navs and headers at top)
+    // This is handled via JavaScript evaluation, not pure selectors
+  ],
+  social: [
+    '[class*="social-share"]', '[class*="share-buttons"]', '[class*="share-bar"]',
+    '[class*="social-widget"]', '[class*="social-icons"]',
+    'iframe[src*="facebook.com/plugins"]', 'iframe[src*="platform.twitter"]',
+    '[class*="fb-like"]', '[class*="tweet-button"]',
+    '[class*="addthis"]', '[class*="sharethis"]',
+  ],
+};
 
 export async function handleWriteCommand(
   command: string,
@@ -356,6 +399,253 @@ export async function handleWriteCommand(
       }
 
       return `Cookie picker opened at ${pickerUrl}\nDetected browsers: ${browsers.map(b => b.name).join(', ')}\nSelect domains to import, then close the picker when done.`;
+    }
+
+    case 'style': {
+      // style --undo [N] → revert modification
+      if (args[0] === '--undo') {
+        const idx = args[1] ? parseInt(args[1], 10) : undefined;
+        await undoModification(page, idx);
+        return idx !== undefined ? `Reverted modification #${idx}` : 'Reverted last modification';
+      }
+
+      // style <selector> <property> <value>
+      const [selector, property, ...valueParts] = args;
+      const value = valueParts.join(' ');
+      if (!selector || !property || !value) {
+        throw new Error('Usage: browse style <sel> <prop> <value> | style --undo [N]');
+      }
+
+      // Validate CSS property name
+      if (!/^[a-zA-Z-]+$/.test(property)) {
+        throw new Error(`Invalid CSS property name: ${property}. Only letters and hyphens allowed.`);
+      }
+
+      const mod = await modifyStyle(page, selector, property, value);
+      return `Style modified: ${selector} { ${property}: ${mod.oldValue || '(none)'} → ${value} } (${mod.method})`;
+    }
+
+    case 'cleanup': {
+      // Parse flags
+      let doAds = false, doCookies = false, doSticky = false, doSocial = false;
+      let doAll = false;
+
+      if (args.length === 0) {
+        throw new Error('Usage: browse cleanup [--ads] [--cookies] [--sticky] [--social] [--all]');
+      }
+
+      for (const arg of args) {
+        switch (arg) {
+          case '--ads': doAds = true; break;
+          case '--cookies': doCookies = true; break;
+          case '--sticky': doSticky = true; break;
+          case '--social': doSocial = true; break;
+          case '--all': doAll = true; break;
+          default:
+            throw new Error(`Unknown cleanup flag: ${arg}. Use: --ads, --cookies, --sticky, --social, --all`);
+        }
+      }
+
+      if (doAll) {
+        doAds = doCookies = doSticky = doSocial = true;
+      }
+
+      const removed: string[] = [];
+
+      // Build selector list for categories to clean
+      const selectors: string[] = [];
+      if (doAds) selectors.push(...CLEANUP_SELECTORS.ads);
+      if (doCookies) selectors.push(...CLEANUP_SELECTORS.cookies);
+      if (doSocial) selectors.push(...CLEANUP_SELECTORS.social);
+
+      if (selectors.length > 0) {
+        const count = await page.evaluate((sels: string[]) => {
+          let removed = 0;
+          for (const sel of sels) {
+            try {
+              const els = document.querySelectorAll(sel);
+              els.forEach(el => {
+                (el as HTMLElement).style.display = 'none';
+                removed++;
+              });
+            } catch {}
+          }
+          return removed;
+        }, selectors);
+        if (count > 0) {
+          if (doAds) removed.push('ads');
+          if (doCookies) removed.push('cookie banners');
+          if (doSocial) removed.push('social widgets');
+        }
+      }
+
+      // Sticky/fixed elements — handled separately with computed style check
+      if (doSticky) {
+        const stickyCount = await page.evaluate(() => {
+          let removed = 0;
+          const allElements = document.querySelectorAll('*');
+          for (const el of allElements) {
+            const style = getComputedStyle(el);
+            if (style.position === 'fixed' || style.position === 'sticky') {
+              const tag = el.tagName.toLowerCase();
+              // Skip main nav/header elements
+              if (tag === 'nav' || tag === 'header') continue;
+              if (el.getAttribute('role') === 'navigation') continue;
+              // Skip elements at the very top that look like navbars
+              const rect = el.getBoundingClientRect();
+              if (rect.top <= 10 && rect.height < 100 && tag !== 'div') continue;
+              (el as HTMLElement).style.display = 'none';
+              removed++;
+            }
+          }
+          return removed;
+        });
+        if (stickyCount > 0) removed.push(`${stickyCount} sticky/fixed elements`);
+      }
+
+      if (removed.length === 0) return 'No clutter elements found to remove.';
+      return `Cleaned up: ${removed.join(', ')}`;
+    }
+
+    case 'prettyscreenshot': {
+      // Parse flags
+      let scrollTo: string | undefined;
+      let doCleanup = false;
+      const hideSelectors: string[] = [];
+      let viewportWidth: number | undefined;
+      let outputPath: string | undefined;
+
+      for (let i = 0; i < args.length; i++) {
+        if (args[i] === '--scroll-to' && i + 1 < args.length) {
+          scrollTo = args[++i];
+        } else if (args[i] === '--cleanup') {
+          doCleanup = true;
+        } else if (args[i] === '--hide' && i + 1 < args.length) {
+          // Collect all following non-flag args as selectors to hide
+          i++;
+          while (i < args.length && !args[i].startsWith('--')) {
+            hideSelectors.push(args[i]);
+            i++;
+          }
+          i--; // Back up since the for loop will increment
+        } else if (args[i] === '--width' && i + 1 < args.length) {
+          viewportWidth = parseInt(args[++i], 10);
+          if (isNaN(viewportWidth)) throw new Error('--width must be a number');
+        } else if (!args[i].startsWith('--')) {
+          outputPath = args[i];
+        } else {
+          throw new Error(`Unknown prettyscreenshot flag: ${args[i]}`);
+        }
+      }
+
+      // Default output path
+      if (!outputPath) {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        outputPath = `${TEMP_DIR}/browse-pretty-${timestamp}.png`;
+      }
+      validateOutputPath(outputPath);
+
+      const originalViewport = page.viewportSize();
+
+      // Set viewport width if specified
+      if (viewportWidth && originalViewport) {
+        await page.setViewportSize({ width: viewportWidth, height: originalViewport.height });
+      }
+
+      // Run cleanup if requested
+      if (doCleanup) {
+        const allSelectors = [
+          ...CLEANUP_SELECTORS.ads,
+          ...CLEANUP_SELECTORS.cookies,
+          ...CLEANUP_SELECTORS.social,
+        ];
+        await page.evaluate((sels: string[]) => {
+          for (const sel of sels) {
+            try {
+              document.querySelectorAll(sel).forEach(el => {
+                (el as HTMLElement).style.display = 'none';
+              });
+            } catch {}
+          }
+          // Also hide fixed/sticky (except nav)
+          for (const el of document.querySelectorAll('*')) {
+            const style = getComputedStyle(el);
+            if (style.position === 'fixed' || style.position === 'sticky') {
+              const tag = el.tagName.toLowerCase();
+              if (tag === 'nav' || tag === 'header') continue;
+              if (el.getAttribute('role') === 'navigation') continue;
+              (el as HTMLElement).style.display = 'none';
+            }
+          }
+        }, allSelectors);
+      }
+
+      // Hide specific elements
+      if (hideSelectors.length > 0) {
+        await page.evaluate((sels: string[]) => {
+          for (const sel of sels) {
+            try {
+              document.querySelectorAll(sel).forEach(el => {
+                (el as HTMLElement).style.display = 'none';
+              });
+            } catch {}
+          }
+        }, hideSelectors);
+      }
+
+      // Scroll to target
+      if (scrollTo) {
+        // Try as CSS selector first, then as text content
+        const scrolled = await page.evaluate((target: string) => {
+          // Try CSS selector
+          let el = document.querySelector(target);
+          if (el) {
+            el.scrollIntoView({ behavior: 'instant', block: 'center' });
+            return true;
+          }
+          // Try text match
+          const walker = document.createTreeWalker(
+            document.body,
+            NodeFilter.SHOW_TEXT,
+            null,
+          );
+          let node: Node | null;
+          while ((node = walker.nextNode())) {
+            if (node.textContent?.includes(target)) {
+              const parent = node.parentElement;
+              if (parent) {
+                parent.scrollIntoView({ behavior: 'instant', block: 'center' });
+                return true;
+              }
+            }
+          }
+          return false;
+        }, scrollTo);
+
+        if (!scrolled) {
+          // Restore viewport before throwing
+          if (viewportWidth && originalViewport) {
+            await page.setViewportSize(originalViewport);
+          }
+          throw new Error(`Could not find element or text to scroll to: ${scrollTo}`);
+        }
+        // Brief wait for scroll to settle
+        await page.waitForTimeout(300);
+      }
+
+      // Take screenshot
+      await page.screenshot({ path: outputPath, fullPage: !scrollTo });
+
+      // Restore viewport
+      if (viewportWidth && originalViewport) {
+        await page.setViewportSize(originalViewport);
+      }
+
+      const parts = ['Screenshot saved'];
+      if (doCleanup) parts.push('(cleaned)');
+      if (scrollTo) parts.push(`(scrolled to: ${scrollTo})`);
+      parts.push(`: ${outputPath}`);
+      return parts.join(' ');
     }
 
     default:

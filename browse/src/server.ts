@@ -23,6 +23,7 @@ import { COMMAND_DESCRIPTIONS } from './commands';
 import { handleSnapshot, SNAPSHOT_FLAGS } from './snapshot';
 import { resolveConfig, ensureStateDir, readVersionHash } from './config';
 import { emitActivity, subscribe, getActivityAfter, getActivityHistory, getSubscriberCount } from './activity';
+import { inspectElement, modifyStyle, resetModifications, getModificationHistory, detachSession, type InspectorResult } from './cdp-inspector';
 // Bun.spawn used instead of child_process.spawn (compiled bun binaries
 // fail posix_spawn on all executables including /bin/bash)
 import * as fs from 'fs';
@@ -544,6 +545,22 @@ const idleCheckInterval = setInterval(() => {
 import { READ_COMMANDS, WRITE_COMMANDS, META_COMMANDS } from './commands';
 export { READ_COMMANDS, WRITE_COMMANDS, META_COMMANDS };
 
+// ─── Inspector State (in-memory) ──────────────────────────────
+let inspectorData: InspectorResult | null = null;
+let inspectorTimestamp: number = 0;
+
+// Inspector SSE subscribers
+type InspectorSubscriber = (event: any) => void;
+const inspectorSubscribers = new Set<InspectorSubscriber>();
+
+function emitInspectorEvent(event: any): void {
+  for (const notify of inspectorSubscribers) {
+    queueMicrotask(() => {
+      try { notify(event); } catch {}
+    });
+  }
+}
+
 // ─── Server ────────────────────────────────────────────────────
 const browserManager = new BrowserManager();
 let isShuttingDown = false;
@@ -728,6 +745,9 @@ async function shutdown() {
   isShuttingDown = true;
 
   console.log('[browse] Shutting down...');
+  // Clean up CDP inspector sessions
+  try { detachSession(); } catch {}
+  inspectorSubscribers.clear();
   // Stop watch mode if active
   if (browserManager.isWatching()) browserManager.stopWatch();
   killAgent();
@@ -1126,6 +1146,149 @@ async function start() {
           headers: { 'Content-Type': 'application/json' },
         });
       }
+
+      // ─── Inspector endpoints ──────────────────────────────────────
+
+      // POST /inspector/pick — receive element pick from extension, run CDP inspection
+      if (url.pathname === '/inspector/pick' && req.method === 'POST') {
+        const body = await req.json();
+        const { selector, activeTabUrl } = body;
+        if (!selector) {
+          return new Response(JSON.stringify({ error: 'Missing selector' }), {
+            status: 400, headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        try {
+          const page = browserManager.getPage();
+          const result = await inspectElement(page, selector);
+          inspectorData = result;
+          inspectorTimestamp = Date.now();
+          // Also store on browserManager for CLI access
+          (browserManager as any)._inspectorData = result;
+          (browserManager as any)._inspectorTimestamp = inspectorTimestamp;
+          emitInspectorEvent({ type: 'pick', selector, timestamp: inspectorTimestamp });
+          return new Response(JSON.stringify(result), {
+            status: 200, headers: { 'Content-Type': 'application/json' },
+          });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), {
+            status: 500, headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
+      // GET /inspector — return latest inspector data
+      if (url.pathname === '/inspector' && req.method === 'GET') {
+        if (!inspectorData) {
+          return new Response(JSON.stringify({ data: null }), {
+            status: 200, headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        const stale = inspectorTimestamp > 0 && (Date.now() - inspectorTimestamp > 60000);
+        return new Response(JSON.stringify({ data: inspectorData, timestamp: inspectorTimestamp, stale }), {
+          status: 200, headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      // POST /inspector/apply — apply a CSS modification
+      if (url.pathname === '/inspector/apply' && req.method === 'POST') {
+        const body = await req.json();
+        const { selector, property, value } = body;
+        if (!selector || !property || value === undefined) {
+          return new Response(JSON.stringify({ error: 'Missing selector, property, or value' }), {
+            status: 400, headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        try {
+          const page = browserManager.getPage();
+          const mod = await modifyStyle(page, selector, property, value);
+          emitInspectorEvent({ type: 'apply', modification: mod, timestamp: Date.now() });
+          return new Response(JSON.stringify(mod), {
+            status: 200, headers: { 'Content-Type': 'application/json' },
+          });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), {
+            status: 500, headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
+      // POST /inspector/reset — clear all modifications
+      if (url.pathname === '/inspector/reset' && req.method === 'POST') {
+        try {
+          const page = browserManager.getPage();
+          await resetModifications(page);
+          emitInspectorEvent({ type: 'reset', timestamp: Date.now() });
+          return new Response(JSON.stringify({ ok: true }), {
+            status: 200, headers: { 'Content-Type': 'application/json' },
+          });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message }), {
+            status: 500, headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
+      // GET /inspector/history — return modification list
+      if (url.pathname === '/inspector/history' && req.method === 'GET') {
+        return new Response(JSON.stringify({ history: getModificationHistory() }), {
+          status: 200, headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      // GET /inspector/events — SSE for inspector state changes
+      if (url.pathname === '/inspector/events' && req.method === 'GET') {
+        const encoder = new TextEncoder();
+        const stream = new ReadableStream({
+          start(controller) {
+            // Send current state immediately
+            if (inspectorData) {
+              controller.enqueue(encoder.encode(
+                `event: state\ndata: ${JSON.stringify({ data: inspectorData, timestamp: inspectorTimestamp })}\n\n`
+              ));
+            }
+
+            // Subscribe for live events
+            const notify: InspectorSubscriber = (event) => {
+              try {
+                controller.enqueue(encoder.encode(
+                  `event: inspector\ndata: ${JSON.stringify(event)}\n\n`
+                ));
+              } catch {
+                inspectorSubscribers.delete(notify);
+              }
+            };
+            inspectorSubscribers.add(notify);
+
+            // Heartbeat every 15s
+            const heartbeat = setInterval(() => {
+              try {
+                controller.enqueue(encoder.encode(`: heartbeat\n\n`));
+              } catch {
+                clearInterval(heartbeat);
+                inspectorSubscribers.delete(notify);
+              }
+            }, 15000);
+
+            // Cleanup on disconnect
+            req.signal.addEventListener('abort', () => {
+              clearInterval(heartbeat);
+              inspectorSubscribers.delete(notify);
+              try { controller.close(); } catch {}
+            });
+          },
+        });
+
+        return new Response(stream, {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+          },
+        });
+      }
+
+      // ─── Command endpoint ──────────────────────────────────────────
 
       if (url.pathname === '/command' && req.method === 'POST') {
         resetIdleTimer();  // Only commands reset idle timer
