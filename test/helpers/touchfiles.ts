@@ -82,7 +82,6 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'review-dashboard-via': ['ship/**', 'scripts/resolvers/review.ts', 'codex/**', 'autoplan/**', 'land-and-deploy/**'],
   'ship-plan-completion': ['ship/**', 'scripts/gen-skill-docs.ts'],
   'ship-plan-verification': ['ship/**', 'scripts/gen-skill-docs.ts'],
-  'ship-idempotency':      ['ship/**', 'scripts/resolvers/utility.ts'],
 
   // Retro
   'retro':             ['retro/**'],

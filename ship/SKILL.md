@@ -1969,15 +1969,15 @@ git push -u origin <branch-name>
 
 **If GitHub:**
 ```bash
-gh pr view --json url,number -q '"PR #\(.number): \(.url)"' 2>/dev/null || echo "NO_PR"
+gh pr view --json url,number,state -q 'if .state == "OPEN" then "PR #\(.number): \(.url)" else "NO_PR" end' 2>/dev/null || echo "NO_PR"
 ```
 
 **If GitLab:**
 ```bash
-glab mr view -F json 2>/dev/null && echo "MR_EXISTS" || echo "NO_MR"
+glab mr view -F json 2>/dev/null | jq -r 'if .state == "opened" then "MR_EXISTS" else "NO_MR" end' 2>/dev/null || echo "NO_MR"
 ```
 
-If a PR/MR already exists: **update** the PR body with the latest test results, coverage, and review findings using `gh pr edit --body "..."` (GitHub) or `glab mr update -d "..."` (GitLab). Print the existing URL and continue to Step 8.5.
+If an **open** PR/MR already exists: **update** the PR body with the latest test results, coverage, and review findings using `gh pr edit --body "..."` (GitHub) or `glab mr update -d "..."` (GitLab). Print the existing URL and continue to Step 8.5.
 
 If no PR/MR exists: create a pull request (GitHub) or merge request (GitLab) using the platform detected in Step 0.
 
