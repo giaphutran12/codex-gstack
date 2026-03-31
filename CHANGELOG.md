@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.14.4.0] - 2026-03-31 — Ship Idempotency + Skill Prefix Fix
+## [0.14.5.0] - 2026-03-31 — Ship Idempotency + Skill Prefix Fix
 
 Re-running `/ship` after a failed push or PR creation no longer double-bumps your version or duplicates your CHANGELOG. And if you use `--prefix` mode, your skill names actually work now.
 
@@ -22,6 +22,26 @@ Re-running `/ship` after a failed push or PR creation no longer double-bumps you
 - 2 tests for gen-skill-docs prefix warning
 - 1 E2E test for ship idempotency (periodic tier)
 - Updated `setupMockInstall` to write SKILL.md with proper frontmatter
+
+## [0.14.4.0] - 2026-03-31 — Review Army: Parallel Specialist Reviewers
+
+Every `/review` now dispatches specialist subagents in parallel. Instead of one agent applying one giant checklist, you get focused reviewers for testing gaps, maintainability, security, performance, data migrations, API contracts, and adversarial red-teaming. Each specialist reads the diff independently with fresh context, outputs structured JSON findings, and the main agent merges, deduplicates, and boosts confidence when multiple specialists flag the same issue. Small diffs (<50 lines) skip specialists entirely for speed. Large diffs (200+ lines) activate the Red Team for adversarial analysis on top.
+
+### Added
+
+- **7 specialist reviewers** running in parallel via Agent tool subagents. Always-on: Testing + Maintainability. Conditional: Security (auth scope), Performance (backend/frontend), Data Migration (migration files), API Contract (controllers/routes), Red Team (large diffs or critical findings).
+- **JSON finding schema.** Specialists output structured JSON objects with severity, confidence, path, line, category, fix, and fingerprint fields. Reliable parsing, no more pipe-delimited text.
+- **Fingerprint-based dedup.** When two specialists flag the same file:line:category, the finding gets boosted confidence and a "MULTI-SPECIALIST CONFIRMED" marker.
+- **PR Quality Score.** Every review computes a 0-10 quality score: `10 - (critical * 2 + informational * 0.5)`. Logged to review history for trending via `/retro`.
+- **3 new diff-scope signals.** `gstack-diff-scope` now detects SCOPE_MIGRATIONS, SCOPE_API, and SCOPE_AUTH to activate the right specialists.
+- **Learning-informed specialist prompts.** Each specialist gets past learnings for its domain injected into the prompt, so reviews get smarter over time.
+- **14 new diff-scope tests** covering all 9 scope signals including the 3 new ones.
+- **7 new E2E tests** (5 gate, 2 periodic) covering migration safety, N+1 detection, delivery audit, quality score, JSON schema compliance, red team activation, and multi-specialist consensus.
+
+### Changed
+
+- **Review checklist refactored.** Categories now covered by specialists (test gaps, dead code, magic numbers, performance, crypto) removed from the main checklist. Main agent focuses on CRITICAL pass only.
+- **Delivery Integrity enhanced.** The existing plan completion audit now investigates WHY items are missing (not just that they're missing) and logs plan-file discrepancies as learnings. Commit-message inference is informational only, never persisted.
 
 ## [0.14.3.0] - 2026-03-31 — Always-On Adversarial Review + Scope Drift + Plan Mode Design Tools
 
