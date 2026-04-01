@@ -373,6 +373,21 @@ success/error/abort, and `USED_BROWSE` with true/false based on whether `$B` was
 If you cannot determine the outcome, use "unknown". The local JSONL always logs. The
 remote binary only runs if telemetry is not off and the binary exists.
 
+## Plan Mode Safe Operations
+
+When in plan mode, these operations are always allowed because they produce
+artifacts that inform the plan, not code changes:
+
+- `$B` commands (browse: screenshots, page inspection, navigation, snapshots)
+- `$D` commands (design: generate mockups, variants, comparison boards, iterate)
+- `codex exec` / `codex review` (outside voice, plan review, adversarial challenge)
+- Writing to `~/.gstack/` (config, analytics, review logs, design artifacts, learnings)
+- Writing to the plan file (already allowed by plan mode)
+- `open` commands for viewing generated artifacts (comparison boards, HTML previews)
+
+These are read-only in spirit — they inspect the live site, generate visual artifacts,
+or get independent opinions. They do NOT modify project source files.
+
 ## Plan Status Footer
 
 When you are in plan mode and about to call ExitPlanMode:
