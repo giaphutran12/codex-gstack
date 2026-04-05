@@ -28,3 +28,24 @@ if ! printf '%s' "$INPUT" | bun -e "const j=JSON.parse(await Bun.stdin.text()); 
 fi
 
 echo "$INPUT" >> "$GSTACK_HOME/projects/$SLUG/learnings.jsonl"
+
+# OpenClaw bridge: write a parallel copy as OpenClaw-readable memory
+OPENCLAW_MEM="$HOME/.openclaw/workspace/memory"
+if [ -d "$HOME/.openclaw" ]; then
+  mkdir -p "$OPENCLAW_MEM"
+  MEM_FILE="$OPENCLAW_MEM/gstack-${SLUG}.md"
+  # Extract fields for the memory entry
+  ENTRY=$(printf '%s' "$INPUT" | bun -e "
+    const j = JSON.parse(await Bun.stdin.text());
+    const ts = j.ts || new Date().toISOString();
+    const date = ts.split('T')[0];
+    console.log('- **[' + (j.key||'unknown') + ']** (' + (j.type||'unknown') + ', ' + date + ', confidence: ' + (j.confidence||'?') + '/10): ' + (j.insight||''));
+  " 2>/dev/null) || true
+  if [ -n "$ENTRY" ]; then
+    # Create file with header if it doesn't exist
+    if [ ! -f "$MEM_FILE" ]; then
+      printf '# gstack learnings for %s\n\nAuto-synced from gstack coding sessions.\n\n' "$SLUG" > "$MEM_FILE"
+    fi
+    echo "$ENTRY" >> "$MEM_FILE"
+  fi
+fi

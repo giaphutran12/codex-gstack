@@ -38,7 +38,31 @@ if [ "$CROSS_PROJECT" = true ]; then
   done
 fi
 
+# Also read OpenClaw memory files (bidirectional bridge)
+OPENCLAW_MEM="$HOME/.openclaw/workspace/memory"
+if [ -d "$OPENCLAW_MEM" ]; then
+  for f in $(find "$OPENCLAW_MEM" -name "*.md" -not -name "gstack-*" 2>/dev/null | head -10); do
+    # Convert markdown memory entries to JSONL for unified processing
+    # Only parse lines that look like learnings (start with "- ")
+    bun -e "
+      const text = await Bun.file('$f').text();
+      for (const line of text.split('\n')) {
+        const m = line.match(/^- \\*\\*\\[([^\\]]+)\\]\\*\\*.*?\\(([^,]+),.*?confidence: (\\d+)/);
+        if (m) {
+          console.log(JSON.stringify({
+            key: m[1], type: m[2].trim(), confidence: parseInt(m[3]),
+            insight: line.replace(/^- \\*\\*\\[[^\\]]+\\]\\*\\*[^:]*: /, ''),
+            source: 'openclaw', ts: new Date().toISOString()
+          }));
+        }
+      }
+    " 2>/dev/null >> /tmp/gstack-openclaw-learnings-$$.jsonl || true
+  done
+  [ -f "/tmp/gstack-openclaw-learnings-$$.jsonl" ] && FILES+=("/tmp/gstack-openclaw-learnings-$$.jsonl")
+fi
+
 if [ ${#FILES[@]} -eq 0 ]; then
+  rm -f /tmp/gstack-openclaw-learnings-$$.jsonl 2>/dev/null
   exit 0
 fi
 
@@ -129,3 +153,6 @@ for (const [t, arr] of Object.entries(byType)) {
   console.log('');
 }
 " 2>/dev/null || exit 0
+
+# Cleanup temp files
+rm -f /tmp/gstack-openclaw-learnings-$$.jsonl 2>/dev/null || true
