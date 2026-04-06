@@ -1621,6 +1621,215 @@ async function start() {
         });
       }
 
+      // ─── Batch endpoint ───────────────────────────────────────────
+      //
+      // Execute multiple commands in parallel across tabs.
+      // Commands targeting different tabs run concurrently (Promise.allSettled).
+      // Commands targeting the same tab run sequentially within that tab group.
+      //
+      //   POST /batch
+      //   { commands: [{command, args?, tabId?}, ...], timeout?, stream? }
+      //
+      if (url.pathname === '/batch' && req.method === 'POST') {
+        resetIdleTimer();
+        try {
+          const body = await req.json();
+          const { commands, timeout = 30000, stream = false } = body;
+
+          if (!Array.isArray(commands) || commands.length === 0) {
+            return new Response(JSON.stringify({ error: 'commands must be a non-empty array' }), {
+              status: 400, headers: { 'Content-Type': 'application/json' },
+            });
+          }
+          if (commands.length > 50) {
+            return new Response(JSON.stringify({ error: 'Max 50 commands per batch' }), {
+              status: 400, headers: { 'Content-Type': 'application/json' },
+            });
+          }
+
+          // Batch-safe command subset
+          const BATCH_SAFE = new Set([
+            // READ
+            'text', 'html', 'links', 'snapshot', 'accessibility', 'cookies', 'url',
+            // WRITE
+            'goto', 'click', 'fill', 'select', 'hover', 'scroll', 'wait',
+            // META
+            'screenshot', 'pdf',
+            // Special (handled separately)
+            'newtab', 'closetab',
+          ]);
+
+          // Validate all commands before execution
+          for (let i = 0; i < commands.length; i++) {
+            const cmd = commands[i];
+            if (!cmd.command) {
+              return new Response(JSON.stringify({ error: `commands[${i}]: missing "command" field` }), {
+                status: 400, headers: { 'Content-Type': 'application/json' },
+              });
+            }
+            if (!BATCH_SAFE.has(cmd.command)) {
+              return new Response(JSON.stringify({
+                error: `commands[${i}]: "${cmd.command}" is not batch-safe`,
+                hint: `Batch-safe commands: ${[...BATCH_SAFE].sort().join(', ')}`,
+              }), {
+                status: 400, headers: { 'Content-Type': 'application/json' },
+              });
+            }
+            if (cmd.command !== 'newtab' && (cmd.tabId === undefined || cmd.tabId === null)) {
+              return new Response(JSON.stringify({ error: `commands[${i}]: tabId required for batch commands (except newtab)` }), {
+                status: 400, headers: { 'Content-Type': 'application/json' },
+              });
+            }
+          }
+
+          emitActivity({ type: 'command_start', command: 'batch', args: [`${commands.length} commands`], url: browserManager.getCurrentUrl(), tabs: browserManager.getTabCount(), mode: browserManager.getConnectionMode() });
+          const batchStart = Date.now();
+
+          // Execute a single command on a TabSession
+          async function executeBatchCommand(cmd: any, cmdTimeout: number): Promise<{ ok: boolean; result?: string; error?: string; tabId?: number }> {
+            const startTime = Date.now();
+            try {
+              // Special: newtab
+              if (cmd.command === 'newtab') {
+                const newId = await browserManager.newTab(cmd.args?.[0]);
+                return { ok: true, result: `Tab ${newId} created`, tabId: newId };
+              }
+              // Special: closetab (skip activeTabId update per plan decision 1B)
+              if (cmd.command === 'closetab') {
+                const session = browserManager.getSession(cmd.tabId);
+                const page = session.getPage();
+                await page.close();
+                // pages and tabSessions cleanup happens via page.on('close') handler
+                return { ok: true, result: `Tab ${cmd.tabId} closed` };
+              }
+
+              const session = browserManager.getSession(cmd.tabId);
+              let result: string;
+
+              if (READ_COMMANDS.has(cmd.command)) {
+                result = await handleReadCommand(cmd.command, cmd.args || [], session);
+              } else if (WRITE_COMMANDS.has(cmd.command)) {
+                result = await handleWriteCommand(cmd.command, cmd.args || [], session, browserManager);
+              } else if (cmd.command === 'snapshot') {
+                result = await handleSnapshot(cmd.args || [], session);
+              } else if (cmd.command === 'screenshot') {
+                const screenshotPath = cmd.args?.[0] || `/tmp/browse-batch-${cmd.tabId}-${Date.now()}.png`;
+                await session.getPage().screenshot({ path: screenshotPath, fullPage: true });
+                result = `Screenshot saved: ${screenshotPath}`;
+              } else if (cmd.command === 'pdf') {
+                const pdfPath = cmd.args?.[0] || `/tmp/browse-batch-${cmd.tabId}-${Date.now()}.pdf`;
+                await session.getPage().pdf({ path: pdfPath });
+                result = `PDF saved: ${pdfPath}`;
+              } else {
+                return { ok: false, error: `Unknown batch command: ${cmd.command}` };
+              }
+
+              return { ok: true, result };
+            } catch (err: any) {
+              return { ok: false, error: friendlyErrorMessage(err.message || String(err)) };
+            }
+          }
+
+          // Group commands by tabId (newtab commands are their own group)
+          const tabGroups = new Map<number | 'newtab', Array<{ cmd: any; index: number }>>();
+          for (let i = 0; i < commands.length; i++) {
+            const cmd = commands[i];
+            const key = cmd.command === 'newtab' ? 'newtab' : cmd.tabId;
+            if (!tabGroups.has(key)) tabGroups.set(key, []);
+            tabGroups.get(key)!.push({ cmd, index: i });
+          }
+
+          // Per-command timeout
+          const perCmdTimeout = Math.min(timeout, 10000);
+
+          // Results array (indexed by original command position)
+          const results: Array<{ index: number; tabId?: number; ok: boolean; result?: string; error?: string; elapsed_ms: number }> = [];
+
+          if (stream) {
+            // SSE streaming mode
+            const encoder = new TextEncoder();
+            const readableStream = new ReadableStream({
+              async start(controller) {
+                const emit = (event: string, data: any) => {
+                  try {
+                    controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+                  } catch { /* client disconnected */ }
+                };
+
+                // Execute all tab groups in parallel
+                const groupPromises = [...tabGroups.entries()].map(async ([key, group]) => {
+                  // Sequential within each tab group
+                  for (const { cmd, index } of group) {
+                    const cmdStart = Date.now();
+                    const result = await executeBatchCommand(cmd, perCmdTimeout);
+                    const entry = { index, tabId: result.tabId ?? cmd.tabId, ...result, elapsed_ms: Date.now() - cmdStart };
+                    delete (entry as any).tabId; // clean up if undefined
+                    if (cmd.tabId !== undefined) (entry as any).tabId = result.tabId ?? cmd.tabId;
+                    emit('result', entry);
+                  }
+                });
+
+                await Promise.allSettled(groupPromises);
+
+                const total_ms = Date.now() - batchStart;
+                const succeeded = results.filter(r => r.ok).length; // won't work for stream, use inline count
+                emit('done', { total_ms, commands: commands.length });
+
+                try { controller.close(); } catch {}
+              },
+            });
+
+            emitActivity({ type: 'command_end', command: 'batch', args: [`${commands.length} commands`, 'stream'], url: browserManager.getCurrentUrl(), duration: Date.now() - batchStart, status: 'ok', tabs: browserManager.getTabCount(), mode: browserManager.getConnectionMode() });
+
+            return new Response(readableStream, {
+              headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' },
+            });
+          } else {
+            // JSON response mode: execute all, collect results, return at once
+            const groupPromises = [...tabGroups.entries()].map(async ([key, group]) => {
+              for (const { cmd, index } of group) {
+                const cmdStart = Date.now();
+                const result = await executeBatchCommand(cmd, perCmdTimeout);
+                results.push({
+                  index,
+                  tabId: result.tabId ?? cmd.tabId,
+                  ok: result.ok,
+                  ...(result.result !== undefined ? { result: result.result } : {}),
+                  ...(result.error !== undefined ? { error: result.error } : {}),
+                  elapsed_ms: Date.now() - cmdStart,
+                });
+              }
+            });
+
+            // Batch-level timeout
+            await Promise.race([
+              Promise.allSettled(groupPromises),
+              new Promise<void>((resolve) => setTimeout(resolve, timeout)),
+            ]);
+
+            // Sort results by original command index
+            results.sort((a, b) => a.index - b.index);
+
+            const total_ms = Date.now() - batchStart;
+            const succeeded = results.filter(r => r.ok).length;
+            const failed = results.filter(r => !r.ok).length;
+
+            emitActivity({ type: 'command_end', command: 'batch', args: [`${commands.length} commands`], url: browserManager.getCurrentUrl(), duration: total_ms, status: failed > 0 ? 'error' : 'ok', tabs: browserManager.getTabCount(), mode: browserManager.getConnectionMode() });
+
+            return new Response(JSON.stringify({
+              results,
+              timing: { total_ms, succeeded, failed },
+            }), {
+              status: 200, headers: { 'Content-Type': 'application/json' },
+            });
+          }
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err.message || 'Batch execution failed' }), {
+            status: 500, headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
       // ─── Command endpoint ──────────────────────────────────────────
 
       if (url.pathname === '/command' && req.method === 'POST') {
