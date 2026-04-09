@@ -459,9 +459,7 @@ export class BrowserManager {
       // Inject indicator on restored page (addInitScript only fires on new navigations)
       try {
         await page.evaluate(indicatorScript);
-      } catch (err: any) {
-        if (!err?.message?.includes('closed') && !err?.message?.includes('navigat')) throw err;
-      }
+      } catch {}
     } else {
       await this.newTab();
     }
@@ -619,9 +617,7 @@ export class BrowserManager {
             if (!(err instanceof TypeError)) throw err;
           }
         }
-      } catch (err: any) {
-        if (!err?.message?.includes('closed') && !err?.message?.includes('Target')) throw err;
-      }
+      } catch {}
     }
     // Fall back to fuzzy match
     if (fuzzyId !== null) {
@@ -715,17 +711,14 @@ export class BrowserManager {
     this.getActiveSession().clearRefs();
   }
 
-  // alias for active session
   async resolveRef(selector: string): Promise<{ locator: Locator } | { selector: string }> {
     return this.getActiveSession().resolveRef(selector);
   }
 
-  // alias for active session
   getRefRole(selector: string): string | null {
     return this.getActiveSession().getRefRole(selector);
   }
 
-  // alias for active session
   getRefCount(): number {
     return this.getActiveSession().getRefCount();
   }
@@ -735,7 +728,6 @@ export class BrowserManager {
     this.getActiveSession().setLastSnapshot(text);
   }
 
-  // alias for active session
   getLastSnapshot(): string | null {
     return this.getActiveSession().getLastSnapshot();
   }
@@ -797,12 +789,10 @@ export class BrowserManager {
     this.getActiveSession().setFrame(frame);
   }
 
-  // alias for active session
   getFrame(): import('playwright').Frame | null {
     return this.getActiveSession().getFrame();
   }
 
-  // alias for active session
   getActiveFrameOrPage(): import('playwright').Page | import('playwright').Frame {
     return this.getActiveSession().getActiveFrameOrPage();
   }
@@ -826,9 +816,7 @@ export class BrowserManager {
           localStorage: { ...localStorage },
           sessionStorage: { ...sessionStorage },
         }));
-      } catch (err: any) {
-        if (!err?.message?.includes('closed') && !err?.message?.includes('Target')) throw err;
-      }
+      } catch {}
       pages.push({
         url: url === 'about:blank' ? '' : url,
         isActive: id === this.activeTabId,
@@ -887,9 +875,7 @@ export class BrowserManager {
               }
             }
           }, saved.storage);
-        } catch (err: any) {
-          if (!err?.message?.includes('closed') && !err?.message?.includes('Target')) throw err;
-        }
+        } catch {}
       }
 
       if (saved.isActive) activeId = id;
@@ -1161,9 +1147,8 @@ export class BrowserManager {
         } else {
           await dialog.dismiss();
         }
-      } catch (err: any) {
+      } catch {
         // Dialog may have been dismissed by navigation
-        if (!err?.message?.includes('closed') && !err?.message?.includes('dismiss')) throw err;
       }
     });
 
@@ -1212,9 +1197,7 @@ export class BrowserManager {
             }
           }
         }
-      } catch (err: any) {
-        if (!err?.message?.includes('closed') && !err?.message?.includes('Target')) throw err;
-      }
+      } catch {}
     });
   }
 }
