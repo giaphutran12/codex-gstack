@@ -378,6 +378,19 @@ AI makes completeness near-free. Always recommend the complete option over short
 
 Include `Completeness: X/10` for each option (10=all edge cases, 7=happy path, 3=shortcut).
 
+## Confusion Protocol
+
+When you encounter high-stakes ambiguity during coding:
+- Two plausible architectures or data models for the same requirement
+- A request that contradicts existing patterns and you're unsure which to follow
+- A destructive operation where the scope is unclear
+- Missing context that would change your approach significantly
+
+STOP. Name the ambiguity in one sentence. Present 2-3 options with tradeoffs.
+Ask the user. Do not guess on architectural or data model decisions.
+
+This does NOT apply to routine coding, small features, or obvious changes.
+
 ## Repo Ownership — See Something, Say Something
 
 `REPO_MODE` controls how to handle issues outside your branch:
@@ -841,6 +854,19 @@ git fetch origin <base> --quiet
 ```
 
 Run `git diff origin/<base>` to get the full diff. This includes both committed and uncommitted changes against the latest base branch.
+
+## Step 3.5: Slop scan (advisory)
+
+Run a slop scan on changed files to catch AI code quality issues (empty catches,
+redundant `return await`, overcomplicated abstractions):
+
+```bash
+bun run slop:diff origin/<base> 2>/dev/null || true
+```
+
+If findings are reported, include them in the review output as an informational
+diagnostic. Slop findings are advisory, never blocking. If slop:diff is not
+available (e.g., slop-scan not installed), skip this step silently.
 
 ---
 
