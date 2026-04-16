@@ -764,10 +764,19 @@ if (BROWSE_PARENT_PID > 0) {
     try {
       process.kill(BROWSE_PARENT_PID, 0); // signal 0 = existence check only, no signal sent
     } catch {
-      // Parent exited. Don't shutdown — the server should persist across
-      // Bash calls (e.g. Claude Code sandbox kills the parent shell).
-      // The idle timeout (30 min) handles eventual cleanup instead.
-      if (!parentGone) {
+      // Parent exited. Behavior depends on mode:
+      // - Normal (headless) mode: stay alive. Claude Code's Bash tool kills the
+      //   parent shell between invocations, so the server must survive. The
+      //   idle timeout (30 min) handles eventual cleanup.
+      // - Headed / tunnel mode: the idle timeout DOESN'T apply (see idleCheckInterval
+      //   above — both modes early-return). If we ignored parent death here too,
+      //   orphan daemons would accumulate forever after /pair-agent or
+      //   /open-gstack-browser sessions end. Shutdown instead.
+      const headed = browserManager.getConnectionMode() === 'headed';
+      if (headed || tunnelActive) {
+        console.log(`[browse] Parent process ${BROWSE_PARENT_PID} exited in ${headed ? 'headed' : 'tunnel'} mode, shutting down`);
+        shutdown();
+      } else if (!parentGone) {
         parentGone = true;
         console.log(`[browse] Parent process ${BROWSE_PARENT_PID} exited (server stays alive, idle timeout will clean up)`);
       }
@@ -1233,10 +1242,21 @@ async function shutdown() {
 // Handle signals
 // SIGINT (Ctrl+C): user intentionally stopping → shutdown
 process.on('SIGINT', shutdown);
-// SIGTERM: may come from sandbox killing parent → ignore and let idle timeout handle cleanup.
-// Explicit shutdown is available via the /stop command or SIGINT.
+// SIGTERM behavior depends on mode:
+// - Normal (headless) mode: Claude Code's Bash sandbox fires SIGTERM when the
+//   parent shell exits between tool invocations. Ignoring it keeps the server
+//   alive across $B calls. Idle timeout (30 min) handles eventual cleanup.
+// - Headed / tunnel mode: idle timeout doesn't apply in these modes. Respect
+//   SIGTERM so external tooling (systemd, supervisord, CI) can shut cleanly
+//   without waiting forever. Ctrl+C and /stop still work either way.
 process.on('SIGTERM', () => {
-  console.log('[browse] Received SIGTERM (ignoring — use /stop or Ctrl+C for intentional shutdown)');
+  const headed = browserManager.getConnectionMode() === 'headed';
+  if (headed || tunnelActive) {
+    console.log(`[browse] Received SIGTERM in ${headed ? 'headed' : 'tunnel'} mode, shutting down`);
+    shutdown();
+  } else {
+    console.log('[browse] Received SIGTERM (ignoring — use /stop or Ctrl+C for intentional shutdown)');
+  }
 });
 // Windows: taskkill /F bypasses SIGTERM, but 'exit' fires for some shutdown paths.
 // Defense-in-depth — primary cleanup is the CLI's stale-state detection via health check.
