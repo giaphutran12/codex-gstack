@@ -368,7 +368,7 @@ If A: revise the premise and note the revision. If B: proceed (and note that the
 
 export function generateScopeDrift(ctx: TemplateContext): string {
   const isShip = ctx.skillName === 'ship';
-  const stepNum = isShip ? '3.48' : '1.5';
+  const stepNum = isShip ? '8.2' : '1.5';
 
   return `## Step ${stepNum}: Scope Drift Detection
 
@@ -413,7 +413,7 @@ export function generateAdversarialStep(ctx: TemplateContext): string {
   if (ctx.host === 'codex') return '';
 
   const isShip = ctx.skillName === 'ship';
-  const stepNum = isShip ? '3.8' : '5.7';
+  const stepNum = isShip ? '11' : '5.7';
 
   return `## Step ${stepNum}: Adversarial review (always-on)
 
@@ -501,7 +501,7 @@ A) Investigate and fix now (recommended)
 B) Continue — review will still complete
 \`\`\`
 
-If A: address the findings${isShip ? '. After fixing, re-run tests (Step 3) since code has changed' : ''}. Re-run \`codex review\` to verify.
+If A: address the findings${isShip ? '. After fixing, re-run tests (Step 5) since code has changed' : ''}. Re-run \`codex review\` to verify.
 
 Read stderr for errors (same error handling as Codex adversarial above).
 
@@ -917,16 +917,16 @@ export function generatePlanCompletionAuditReview(_ctx: TemplateContext): string
 // ─── Plan Verification Execution ──────────────────────────────────────
 
 export function generatePlanVerificationExec(_ctx: TemplateContext): string {
-  return `## Step 3.47: Plan Verification
+  return `## Step 8.1: Plan Verification
 
 Automatically verify the plan's testing/verification steps using the \`/qa-only\` skill.
 
 ### 1. Check for verification section
 
-Using the plan file already discovered in Step 3.45, look for a verification section. Match any of these headings: \`## Verification\`, \`## Test plan\`, \`## Testing\`, \`## How to test\`, \`## Manual testing\`, or any section with verification-flavored items (URLs to visit, things to check visually, interactions to test).
+Using the plan file already discovered in Step 8, look for a verification section. Match any of these headings: \`## Verification\`, \`## Test plan\`, \`## Testing\`, \`## How to test\`, \`## Manual testing\`, or any section with verification-flavored items (URLs to visit, things to check visually, interactions to test).
 
 **If no verification section found:** Skip with "No verification steps found in plan — skipping auto-verification."
-**If no plan file was found in Step 3.45:** Skip (already handled).
+**If no plan file was found in Step 8:** Skip (already handled).
 
 ### 2. Check for running dev server
 
@@ -971,7 +971,7 @@ Follow the /qa-only workflow with these modifications:
 
 ### 5. Include in PR body
 
-Add a \`## Verification Results\` section to the PR body (Step 8):
+Add a \`## Verification Results\` section to the PR body (Step 19):
 - If verification ran: summary of results (N PASS, M FAIL, K SKIPPED)
 - If skipped: reason for skipping (no plan, no server, no verification section)`;
 }
@@ -980,9 +980,9 @@ Add a \`## Verification Results\` section to the PR body (Step 8):
 
 export function generateCrossReviewDedup(ctx: TemplateContext): string {
   const isShip = ctx.skillName === 'ship';
-  const stepNum = isShip ? '3.57' : '5.0';
+  const stepNum = isShip ? '9.3' : '5.0';
   const findingsRef = isShip
-    ? 'the checklist pass (Step 3.5) and specialist review (Step 3.55-3.56)'
+    ? 'the checklist pass (Step 9) and specialist review (Step 9.1-9.2)'
     : 'Step 4 critical pass and Step 4.5-4.6 specialists';
 
   return `### Step ${stepNum}: Cross-review finding dedup

@@ -752,13 +752,13 @@ describe('TEST_COVERAGE_AUDIT placeholders', () => {
 
   test('ship SKILL.md contains review army specialist dispatch', () => {
     expect(shipSkill).toContain('Specialist Dispatch');
-    expect(shipSkill).toContain('Step 3.55');
-    expect(shipSkill).toContain('Step 3.56');
+    expect(shipSkill).toContain('Step 9.1');
+    expect(shipSkill).toContain('Step 9.2');
   });
 
   test('ship SKILL.md contains cross-review finding dedup', () => {
     expect(shipSkill).toContain('Cross-review finding dedup');
-    expect(shipSkill).toContain('Step 3.57');
+    expect(shipSkill).toContain('Step 9.3');
   });
 
   test('ship SKILL.md contains re-run idempotency behavior', () => {
@@ -839,7 +839,7 @@ describe('PLAN_COMPLETION_AUDIT placeholders', () => {
 
   test('ship SKILL.md contains plan completion audit step', () => {
     expect(shipSkill).toContain('Plan Completion Audit');
-    expect(shipSkill).toContain('Step 3.45');
+    expect(shipSkill).toContain('Step 8');
   });
 
   test('review SKILL.md contains plan completion in scope drift', () => {
@@ -888,7 +888,7 @@ describe('PLAN_VERIFICATION_EXEC placeholder', () => {
   const shipSkill = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
 
   test('ship SKILL.md contains plan verification step', () => {
-    expect(shipSkill).toContain('Step 3.47');
+    expect(shipSkill).toContain('Step 8.1');
     expect(shipSkill).toContain('Plan Verification');
   });
 
@@ -946,7 +946,7 @@ describe('Ship metrics logging', () => {
   const shipSkill = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
 
   test('ship SKILL.md contains metrics persistence step', () => {
-    expect(shipSkill).toContain('Step 8.75');
+    expect(shipSkill).toContain('Step 20');
     expect(shipSkill).toContain('coverage_pct');
     expect(shipSkill).toContain('plan_items_total');
     expect(shipSkill).toContain('plan_items_done');

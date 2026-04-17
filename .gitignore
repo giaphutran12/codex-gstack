@@ -6,6 +6,8 @@ design/dist/
 bin/gstack-global-discover
 .gstack/
 .claude/skills/
+.claude/scheduled_tasks.lock
+.claude/*.lock
 .agents/
 .factory/
 .kiro/
