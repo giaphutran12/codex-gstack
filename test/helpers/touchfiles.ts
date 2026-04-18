@@ -116,6 +116,19 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'context-save-writes-file':       ['context-save/**', 'bin/gstack-slug'],
   'context-restore-loads-latest':   ['context-restore/**', 'bin/gstack-slug'],
 
+  // Context skills E2E (live-fire, Skill-tool routing path) — see
+  // test/skill-e2e-context-skills.test.ts. These are periodic-tier because
+  // each one spawns claude -p and costs ~$0.20-$0.40. Collectively they
+  // verify the thing the /checkpoint → /context-save rename was for.
+  'context-save-routing':                  ['context-save/**', 'scripts/resolvers/preamble.ts'],
+  'context-save-then-restore-roundtrip':   ['context-save/**', 'context-restore/**', 'bin/gstack-slug'],
+  'context-restore-fragment-match':        ['context-restore/**'],
+  'context-restore-empty-state':           ['context-restore/**'],
+  'context-restore-list-delegates':        ['context-restore/**'],
+  'context-restore-legacy-compat':         ['context-restore/**'],
+  'context-save-list-current-branch':      ['context-save/**'],
+  'context-save-list-all-branches':        ['context-save/**'],
+
   // Document-release
   'document-release': ['document-release/**'],
 
@@ -258,6 +271,16 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic'> = {
   'context-recovery-artifacts': 'gate',            // Preamble reads seeded artifacts
   'context-save-writes-file': 'gate',              // /context-save writes a file
   'context-restore-loads-latest': 'gate',          // Cross-branch newest-by-filename restore
+
+  // Context skills live-fire — periodic (each test spawns claude -p, ~$0.20-$0.40)
+  'context-save-routing': 'periodic',              // Proves /context-save routes via Skill tool
+  'context-save-then-restore-roundtrip': 'periodic', // Full cycle in one session
+  'context-restore-fragment-match': 'periodic',    // /context-restore <fragment>
+  'context-restore-empty-state': 'periodic',       // Graceful zero-saves message
+  'context-restore-list-delegates': 'periodic',    // /context-restore list redirect
+  'context-restore-legacy-compat': 'periodic',     // Pre-rename files still load
+  'context-save-list-current-branch': 'periodic',  // Default branch filter
+  'context-save-list-all-branches': 'periodic',    // --all flag
 
   // Ship — gate (end-to-end ship path)
   'ship-base-branch': 'gate',
