@@ -2022,8 +2022,10 @@ already knows. A good test: would this insight save time in a future session? If
 **Idempotency check:** Before bumping, classify the state by comparing `VERSION` against the base branch AND against `package.json`'s `version` field. Four states: FRESH (do bump), ALREADY_BUMPED (skip bump), DRIFT_STALE_PKG (sync pkg only, no re-bump), DRIFT_UNEXPECTED (stop and ask).
 
 ```bash
-BASE_VERSION=$(git show origin/<base>:VERSION 2>/dev/null || echo "0.0.0.0")
-CURRENT_VERSION=$(cat VERSION 2>/dev/null || echo "0.0.0.0")
+BASE_VERSION=$(git show origin/<base>:VERSION 2>/dev/null | tr -d '\r\n[:space:]' || echo "0.0.0.0")
+CURRENT_VERSION=$(cat VERSION 2>/dev/null | tr -d '\r\n[:space:]' || echo "0.0.0.0")
+[ -z "$BASE_VERSION" ] && BASE_VERSION="0.0.0.0"
+[ -z "$CURRENT_VERSION" ] && CURRENT_VERSION="0.0.0.0"
 PKG_VERSION=""
 PKG_EXISTS=0
 if [ -f package.json ]; then
@@ -2112,7 +2114,11 @@ fi
 **DRIFT_STALE_PKG repair path** — runs when idempotency reports `STATE: DRIFT_STALE_PKG`. No re-bump; sync `package.json.version` to the current `VERSION` and continue. Reuse `CURRENT_VERSION` for CHANGELOG and PR body.
 
 ```bash
-REPAIR_VERSION=$(cat VERSION)
+REPAIR_VERSION=$(cat VERSION | tr -d '\r\n[:space:]')
+if ! printf '%s' "$REPAIR_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+  echo "ERROR: VERSION file contents ($REPAIR_VERSION) do not match MAJOR.MINOR.PATCH.MICRO pattern. Refusing to propagate invalid semver into package.json. Fix VERSION manually, then re-run /ship."
+  exit 1
+fi
 if command -v node >/dev/null 2>&1; then
   node -e 'const fs=require("fs"),p=require("./package.json");p.version=process.argv[1];fs.writeFileSync("package.json",JSON.stringify(p,null,2)+"\n")' "$REPAIR_VERSION" || {
     echo "ERROR: drift repair failed — could not update package.json."
