@@ -558,7 +558,7 @@ function spawnClaude(userMessage: string, extensionUrl?: string | null, forTabId
   // the system prompt — session is killed, user sees the banner.
   const canary = generateCanary();
 
-  const baseSystemPrompt = [
+  const systemPrompt = [
     '<system>',
     `Browser co-pilot. Binary: ${B}`,
     'Run `' + B + ' url` first to check the actual page. NEVER assume the URL.',
@@ -585,9 +585,9 @@ function spawnClaude(userMessage: string, extensionUrl?: string | null, forTabId
 
   // Append the canary instruction. injectCanary() tells Claude never to
   // output the token on any channel.
-  const systemPrompt = injectCanary(baseSystemPrompt, canary);
+  const systemPromptWithCanary = injectCanary(systemPrompt, canary);
 
-  const prompt = `${systemPrompt}\n\n<user-message>\n${escapedMessage}\n</user-message>`;
+  const prompt = `${systemPromptWithCanary}\n\n<user-message>\n${escapedMessage}\n</user-message>`;
   // Never resume — each message is a fresh context. Resuming carries stale
   // page URLs and old navigation state that makes the agent fight the user.
 
