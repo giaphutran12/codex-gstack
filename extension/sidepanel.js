@@ -176,6 +176,35 @@ function hideSecurityBanner() {
   if (banner) banner.style.display = 'none';
 }
 
+// Shield icon state update — consumes /health.security.status.
+// status ∈ { 'protected', 'degraded', 'inactive' }.
+// 'protected' = all layers ok. 'degraded' = at least one ML layer off or failed
+//   (sidebar still defended by canary + architectural controls).
+// 'inactive' = security module crashed — only architectural controls active.
+const SHIELD_LABELS = {
+  protected: { label: 'SEC', aria: 'Security status: protected' },
+  degraded:  { label: 'SEC', aria: 'Security status: degraded (some layers offline)' },
+  inactive:  { label: 'SEC', aria: 'Security status: inactive (architectural controls only)' },
+};
+function updateSecurityShield(securityState) {
+  const shield = document.getElementById('security-shield');
+  const labelEl = document.getElementById('security-shield-label');
+  if (!shield || !securityState) return;
+  const status = securityState.status || 'inactive';
+  const info = SHIELD_LABELS[status] || SHIELD_LABELS.inactive;
+  shield.setAttribute('data-status', status);
+  shield.setAttribute('aria-label', info.aria);
+  shield.style.display = 'inline-flex';
+  if (labelEl) labelEl.textContent = info.label;
+  // Hover tooltip gives layer-level detail for debugging.
+  if (securityState.layers) {
+    const parts = Object.entries(securityState.layers).map(([k, v]) => `${k}:${v}`);
+    shield.setAttribute('title', `Security — ${status}\n${parts.join('\n')}`);
+  } else {
+    shield.setAttribute('title', `Security — ${status}`);
+  }
+}
+
 // Wire up banner interactivity once on load
 document.addEventListener('DOMContentLoaded', () => {
   const closeBtn = document.getElementById('security-banner-close');
@@ -1662,6 +1691,8 @@ async function tryConnect() {
           `token: yes (from /health)\nStarting SSE + chat polling...`
         );
         updateConnection(`http://127.0.0.1:${port}`, data.token);
+        // Shield state arrives on /health alongside the auth token.
+        if (data.security) updateSecurityShield(data.security);
         return;
       }
       setLoadingStatus(
