@@ -17,7 +17,6 @@
  *   --judge                      Run Anthropic SDK judge on outputs for quality score
  *                                (requires ANTHROPIC_API_KEY; adds ~$0.05 per call)
  *   --dry-run                    Validate flags + resolve auth, don't invoke providers
- *                                (matches gstack-publish --dry-run semantics)
  *
  * Examples:
  *   gstack-model-benchmark --prompt "Write a haiku about databases" --models claude,gpt

@@ -234,7 +234,6 @@ Beyond the slash-command skills, gstack ships standalone CLIs for workflows that
 | Command | What it does |
 |---------|-------------|
 | `gstack-model-benchmark` | **Cross-model benchmark** — run the same prompt through Claude, GPT (via Codex CLI), and Gemini; compare latency, tokens, cost, and (optionally) LLM-judge quality score. Auth detected per provider, unavailable providers skip cleanly. Output as table, JSON, or markdown. `--dry-run` validates flags + auth without spending API calls. |
-| `gstack-publish` | **Marketplace distribution** — publishes standalone methodology skills (office-hours, ceo-review, investigate, retro) to ClawHub, SkillsMP, and Vercel Skills.sh. Manifest at `skills.json`. `--dry-run` validates everything without actually publishing. Per-skill, per-marketplace error isolation — one failure never aborts the batch. |
 | `gstack-taste-update` | **Design taste learning** — writes approvals and rejections from `/design-shotgun` into a persistent per-project taste profile. Decays 5%/week. Feeds back into future variant generation so the system learns what you actually pick. |
 
 ### Continuous checkpoint mode (opt-in, local by default)
