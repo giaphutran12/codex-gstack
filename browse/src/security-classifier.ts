@@ -59,6 +59,31 @@ const TESTSAVANT_FILES = [
   'vocab.txt',
 ];
 
+// DeBERTa-v3 (ProtectAI) — OPT-IN ensemble layer. Adds architectural
+// diversity: TestSavantAI-small is BERT-small fine-tuned on injection +
+// jailbreak; DeBERTa-v3-base is a separate model family trained on its
+// own corpus. Agreement between the two is stronger evidence than either
+// alone.
+//
+// Size: model.onnx is 721MB (FP32). Users opt in via
+// GSTACK_SECURITY_ENSEMBLE=deberta. Not forced on every install because
+// most users won't need the higher recall and 721MB download is a lot.
+const DEBERTA_DIR = path.join(MODELS_DIR, 'deberta-v3-injection');
+const DEBERTA_HF_URL = 'https://huggingface.co/protectai/deberta-v3-base-injection-onnx/resolve/main';
+const DEBERTA_FILES = [
+  'config.json',
+  'tokenizer.json',
+  'tokenizer_config.json',
+  'special_tokens_map.json',
+  'spm.model',
+  'added_tokens.json',
+];
+
+function isDebertaEnabled(): boolean {
+  const setting = (process.env.GSTACK_SECURITY_ENSEMBLE ?? '').toLowerCase();
+  return setting.split(',').map(s => s.trim()).includes('deberta');
+}
+
 // ─── Load state ──────────────────────────────────────────────
 
 type LoadState = 'uninitialized' | 'loading' | 'loaded' | 'failed';
@@ -67,9 +92,14 @@ let testsavantState: LoadState = 'uninitialized';
 let testsavantClassifier: any = null;
 let testsavantLoadError: string | null = null;
 
+let debertaState: LoadState = 'uninitialized';
+let debertaClassifier: any = null;
+let debertaLoadError: string | null = null;
+
 export interface ClassifierStatus {
   testsavant: 'ok' | 'degraded' | 'off';
   transcript: 'ok' | 'degraded' | 'off';
+  deberta?: 'ok' | 'degraded' | 'off'; // only present when ensemble enabled
 }
 
 export function getClassifierStatus(): ClassifierStatus {
@@ -77,11 +107,16 @@ export function getClassifierStatus(): ClassifierStatus {
     testsavantState === 'loaded' ? 'ok' :
     testsavantState === 'failed' ? 'degraded' :
     'off';
-  // Transcript classifier has no persistent load state — it spawns claude-haiku
-  // per-call. We report 'ok' if claude is on PATH (checked lazily on first call).
   const transcript = haikuAvailableCache === null ? 'off' :
     haikuAvailableCache ? 'ok' : 'degraded';
-  return { testsavant, transcript };
+  const status: ClassifierStatus = { testsavant, transcript };
+  if (isDebertaEnabled()) {
+    status.deberta =
+      debertaState === 'loaded' ? 'ok' :
+      debertaState === 'failed' ? 'degraded' :
+      'off';
+  }
+  return status;
 }
 
 // ─── Model download + staging ────────────────────────────────
@@ -242,6 +277,89 @@ export async function scanPageContent(text: string): Promise<LayerSignal> {
     testsavantState = 'failed';
     testsavantLoadError = err?.message ?? String(err);
     return { layer: 'testsavant_content', confidence: 0, meta: { degraded: true, error: testsavantLoadError } };
+  }
+}
+
+// ─── L4c: DeBERTa-v3 ensemble (opt-in) ───────────────────────
+
+async function ensureDebertaStaged(onProgress?: (msg: string) => void): Promise<void> {
+  fs.mkdirSync(path.join(DEBERTA_DIR, 'onnx'), { recursive: true, mode: 0o700 });
+  for (const f of DEBERTA_FILES) {
+    const dst = path.join(DEBERTA_DIR, f);
+    if (fs.existsSync(dst)) continue;
+    onProgress?.(`deberta: downloading ${f}`);
+    await downloadFile(`${DEBERTA_HF_URL}/${f}`, dst);
+  }
+  const modelDst = path.join(DEBERTA_DIR, 'onnx', 'model.onnx');
+  if (!fs.existsSync(modelDst)) {
+    onProgress?.('deberta: downloading model.onnx (721MB) — first run only');
+    await downloadFile(`${DEBERTA_HF_URL}/model.onnx`, modelDst);
+  }
+}
+
+let debertaLoadPromise: Promise<void> | null = null;
+export function loadDeberta(onProgress?: (msg: string) => void): Promise<void> {
+  if (!isDebertaEnabled()) return Promise.resolve();
+  if (debertaState === 'loaded') return Promise.resolve();
+  if (debertaLoadPromise) return debertaLoadPromise;
+  debertaState = 'loading';
+  debertaLoadPromise = (async () => {
+    try {
+      await ensureDebertaStaged(onProgress);
+      onProgress?.('deberta: initializing classifier');
+      const { pipeline, env } = await import('@huggingface/transformers');
+      env.allowLocalModels = true;
+      env.allowRemoteModels = false;
+      env.localModelPath = MODELS_DIR;
+      debertaClassifier = await pipeline(
+        'text-classification',
+        'deberta-v3-injection',
+        { dtype: 'fp32' },
+      );
+      const tok = debertaClassifier?.tokenizer as any;
+      if (tok?._tokenizerConfig) {
+        tok._tokenizerConfig.model_max_length = 512;
+      }
+      debertaState = 'loaded';
+    } catch (err: any) {
+      debertaState = 'failed';
+      debertaLoadError = err?.message ?? String(err);
+      console.error('[security-classifier] Failed to load DeBERTa-v3:', debertaLoadError);
+    }
+  })();
+  return debertaLoadPromise;
+}
+
+/**
+ * Scan text with the DeBERTa-v3 ensemble classifier. Returns a LayerSignal
+ * with layer='deberta_content'. No-op when ensemble is disabled — returns
+ * confidence=0 with meta.disabled=true so combineVerdict treats it as safe.
+ */
+export async function scanPageContentDeberta(text: string): Promise<LayerSignal> {
+  if (!isDebertaEnabled()) {
+    return { layer: 'deberta_content', confidence: 0, meta: { disabled: true } };
+  }
+  if (!text || text.length === 0) {
+    return { layer: 'deberta_content', confidence: 0 };
+  }
+  if (debertaState !== 'loaded') {
+    return { layer: 'deberta_content', confidence: 0, meta: { degraded: true } };
+  }
+  try {
+    const plain = htmlToPlainText(text);
+    const input = plain.slice(0, 4000);
+    const raw = await debertaClassifier(input);
+    const top = Array.isArray(raw) ? raw[0] : raw;
+    const label = top?.label ?? 'SAFE';
+    const score = Number(top?.score ?? 0);
+    if (label === 'INJECTION') {
+      return { layer: 'deberta_content', confidence: score, meta: { label } };
+    }
+    return { layer: 'deberta_content', confidence: 0, meta: { label, safeScore: score } };
+  } catch (err: any) {
+    debertaState = 'failed';
+    debertaLoadError = err?.message ?? String(err);
+    return { layer: 'deberta_content', confidence: 0, meta: { degraded: true, error: debertaLoadError } };
   }
 }
 

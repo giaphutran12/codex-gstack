@@ -21,6 +21,7 @@ import {
 import {
   loadTestsavant, scanPageContent, checkTranscript,
   shouldRunTranscriptCheck, getClassifierStatus,
+  loadDeberta, scanPageContentDeberta,
   type ToolCallInput,
 } from './security-classifier';
 
@@ -457,11 +458,15 @@ async function preSpawnSecurityCheck(entry: QueueEntry): Promise<boolean> {
   if (!message || message.length === 0) return false;
   const tid = tabId ?? 0;
 
-  // L4: scan the user message for direct injection patterns
-  const contentSignal = await scanPageContent(message);
-  const signals: LayerSignal[] = [contentSignal];
+  // L4: scan the user message for direct injection patterns (TestSavantAI)
+  // L4c: also scan with DeBERTa-v3 when ensemble is enabled (opt-in)
+  const [contentSignal, debertaSignal] = await Promise.all([
+    scanPageContent(message),
+    scanPageContentDeberta(message),
+  ]);
+  const signals: LayerSignal[] = [contentSignal, debertaSignal];
 
-  // L4b: only bother with Haiku if L4 already lit up at >= LOG_ONLY.
+  // L4b: only bother with Haiku if another layer already lit up at >= LOG_ONLY.
   // Saves ~70% of Haiku calls per plan §E1 "gating optimization".
   if (shouldRunTranscriptCheck(signals)) {
     const transcriptSignal = await checkTranscript({
@@ -593,10 +598,16 @@ async function askClaude(queueEntry: QueueEntry): Promise<void> {
     const toolResultScanCtx: ToolResultScanContext = {
       scan: async (toolName: string, text: string) => {
         if (toolResultBlockFired) return;
-        const contentSignal = await scanPageContent(text);
-        if (contentSignal.confidence < THRESHOLDS.WARN) return;
-        // Signal crossed WARN — see if ensemble upgrades to BLOCK.
-        const signals: LayerSignal[] = [contentSignal];
+        // Parallel L4 + L4c ensemble scan (DeBERTa no-op when disabled).
+        const [contentSignal, debertaSignal] = await Promise.all([
+          scanPageContent(text),
+          scanPageContentDeberta(text),
+        ]);
+        // Short-circuit if neither content layer crossed WARN — no point
+        // spinning up Haiku for a clean scan.
+        const maxContent = Math.max(contentSignal.confidence, debertaSignal.confidence);
+        if (maxContent < THRESHOLDS.WARN) return;
+        const signals: LayerSignal[] = [contentSignal, debertaSignal];
         if (shouldRunTranscriptCheck(signals)) {
           signals.push(await checkTranscript({
             user_message: queueEntry.message ?? '',
@@ -808,6 +819,12 @@ async function main() {
   console.log(`[sidebar-agent] Started. Watching ${QUEUE} from line ${lastLine}`);
   console.log(`[sidebar-agent] Server: ${SERVER_URL}`);
   console.log(`[sidebar-agent] Browse binary: ${B}`);
+
+  // If GSTACK_SECURITY_ENSEMBLE=deberta is set, also warm the DeBERTa-v3
+  // ensemble classifier. Fire-and-forget alongside TestSavantAI — they
+  // warm in parallel. No-op when the env var is unset.
+  loadDeberta((msg) => console.log(`[security-classifier] ${msg}`))
+    .catch((err) => console.warn('[sidebar-agent] DeBERTa warmup failed:', err?.message));
 
   // Warm up the ML classifier in the background. First call triggers a 112MB
   // download (~30s on average broadband). Non-blocking — the sidebar stays
