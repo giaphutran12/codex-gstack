@@ -116,8 +116,14 @@ describe('askClaude — pre-spawn + tool-result defense wiring', () => {
     expect(AGENT_SRC).toContain('}, 2000);');
   });
 
-  test('tool-result scan short-circuits when both content layers below WARN', () => {
-    expect(AGENT_SRC).toMatch(/maxContent < THRESHOLDS\.WARN/);
+  test('tool-result scan runs all three classifiers in parallel (no L4 gate)', () => {
+    // Regression guard for the Haiku-always change. Previously the scan
+    // short-circuited when L4/L4c both returned below WARN, which meant
+    // Haiku (our best signal per BrowseSafe-Bench) rarely ran. Now we run
+    // all three in parallel and let combineVerdict decide.
+    expect(AGENT_SRC).toMatch(/scanPageContent\(text\),[\s\S]*scanPageContentDeberta\(text\),[\s\S]*checkTranscript\(/);
+    // The old short-circuit must be gone.
+    expect(AGENT_SRC).not.toMatch(/if \(maxContent < THRESHOLDS\.WARN\) return;/);
   });
 
   test('onCanaryLeaked fires both security_event and agent_error for legacy clients', () => {

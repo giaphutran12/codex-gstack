@@ -624,22 +624,26 @@ async function askClaude(queueEntry: QueueEntry): Promise<void> {
       scan: async (toolName: string, text: string) => {
         if (toolResultBlockFired) return;
         // Parallel L4 + L4c ensemble scan (DeBERTa no-op when disabled).
-        const [contentSignal, debertaSignal] = await Promise.all([
+        // We run L4/L4c AND Haiku in parallel on tool outputs regardless of
+        // L4's score, because BrowseSafe-Bench shows L4 (TestSavantAI) has
+        // low recall on browser-agent-specific attacks (~15% at v1). Gating
+        // Haiku on L4 meant our best signal almost never ran. The cost is
+        // ~$0.002 + ~300ms per tool output, bounded by the Haiku timeout
+        // and offset by Haiku actually seeing the real attack context.
+        //
+        // Haiku only runs when the Claude CLI is available (checkHaikuAvailable
+        // caches the probe). In environments without it, the call returns a
+        // degraded signal and the verdict falls back to L4 alone.
+        const [contentSignal, debertaSignal, transcriptSignal] = await Promise.all([
           scanPageContent(text),
           scanPageContentDeberta(text),
-        ]);
-        // Short-circuit if neither content layer crossed WARN — no point
-        // spinning up Haiku for a clean scan.
-        const maxContent = Math.max(contentSignal.confidence, debertaSignal.confidence);
-        if (maxContent < THRESHOLDS.WARN) return;
-        const signals: LayerSignal[] = [contentSignal, debertaSignal];
-        if (shouldRunTranscriptCheck(signals)) {
-          signals.push(await checkTranscript({
+          checkTranscript({
             user_message: queueEntry.message ?? '',
             tool_calls: [{ tool_name: toolName, tool_input: {} }],
             tool_output: text,
-          }));
-        }
+          }),
+        ]);
+        const signals: LayerSignal[] = [contentSignal, debertaSignal, transcriptSignal];
         const result = combineVerdict(signals, { toolOutput: true });
         if (result.verdict !== 'block') return;
         toolResultBlockFired = true;
