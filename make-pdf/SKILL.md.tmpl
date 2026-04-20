@@ -39,6 +39,10 @@ left-aligned body, Helvetica throughout, curly quotes and em dashes, optional
 cover page and clickable TOC, diagonal DRAFT watermark when you need it.
 Copy-paste from the PDF produces clean words, never "S a i l i n g".
 
+On Linux, install `fonts-liberation` for correct rendering — Helvetica and Arial
+aren't present by default, and Liberation Sans is the standard metric-compatible
+fallback. CI and Docker builds install it automatically via Dockerfile.ci.
+
 {{MAKE_PDF_SETUP}}
 
 ## Core patterns

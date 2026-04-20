@@ -326,6 +326,23 @@ describe("printCss", () => {
     const css = printCss({ pageNumbers: true });
     expect(css).toMatch(/@bottom-center\s*\{\s*content:\s*counter\(page\)/);
   });
+
+  test("font stacks include Liberation Sans adjacent to Helvetica", () => {
+    const css = printCss({ confidential: true });
+    // Body stack
+    expect(css).toMatch(/font-family:\s*Helvetica,\s*"Liberation Sans",\s*Arial/);
+    // At least one @page margin box (running header / page number / CONFIDENTIAL)
+    // should also have the updated stack.
+    const marginBoxStacks = css.match(/@(top|bottom)-(center|right)\s*\{[^}]*Liberation Sans/g) ?? [];
+    expect(marginBoxStacks.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test("all four original Helvetica stacks now include Liberation Sans", () => {
+    const css = printCss({ runningHeader: "Running Title", confidential: true });
+    // Count: body (1) + running header (1) + page numbers (1) + confidential (1) = 4
+    const occurrences = (css.match(/"Liberation Sans"/g) ?? []).length;
+    expect(occurrences).toBeGreaterThanOrEqual(4);
+  });
 });
 
 // ─── render() — pageNumbers / footerTemplate data flow ───────────────
