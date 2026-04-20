@@ -1103,7 +1103,9 @@ describe('Step 3.4 test coverage audit', () => {
   test('ship/SKILL.md contains Step 7', () => {
     const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
     expect(content).toContain('Step 7: Test Coverage Audit');
-    expect(content).toContain('CODE PATHS');
+    // The coverage diagram collapses code-path and user-flow counts onto one
+    // summary line. Verify that summary is present (labels are stable).
+    expect(content).toContain('Code paths:');
   });
 
   test('Step 3.4 includes quality scoring rubric', () => {
@@ -1153,9 +1155,11 @@ describe('Step 3.4 test coverage audit', () => {
     expect(content).toContain('Empty/zero/boundary states');
   });
 
-  test('Step 3.4 diagram includes USER FLOWS section', () => {
+  test('Step 3.4 diagram includes user-flow coverage summary', () => {
     const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('USER FLOWS');
+    // The diagram was compressed from separate CODE PATH COVERAGE / USER FLOW
+    // COVERAGE section headers into a single summary line. Assert on the
+    // labels that still appear on that summary line.
     expect(content).toContain('Code paths:');
     expect(content).toContain('User flows:');
   });
@@ -1165,8 +1169,8 @@ describe('Step 3.4 test coverage audit', () => {
 
 describe('ship step numbering', () => {
   // Allowed sub-steps that are resolver-generated and intentionally nested:
-  // 8.1 (Plan Verification), 8.2 (Scope Drift), 9.1 (Review Army), 9.2 (Findings Merge), 9.3 (Cross-review dedup),
-  // 15.0 (WIP Commit Squash), 15.1 (Bisectable Commits)
+  // 8.1 (Plan Verification), 8.2 (Scope Drift), 9.1 (Review Army), 9.2 (Findings Merge),
+  // 9.3 (Cross-review dedup), 15.0 (WIP squash — continuous checkpoint), 15.1 (Bisectable commits).
   const ALLOWED_SUBSTEPS = new Set(['8.1', '8.2', '9.1', '9.2', '9.3', '15.0', '15.1']);
 
   test('ship/SKILL.md.tmpl contains no unexpected fractional step numbers', () => {

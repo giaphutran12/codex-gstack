@@ -501,8 +501,12 @@ describe('BROWSE_TAB tab pinning (cross-tab isolation)', () => {
   });
 
   test('CLI reads BROWSE_TAB and sends tabId in command body', () => {
+    // BROWSE_TAB env var is still honored (sidebar-agent path). After the
+    // make-pdf refactor, the CLI layer now also accepts --tab-id <N>, with
+    // the CLI flag taking precedence over the env var. Both resolve to the
+    // same `tabId` body field.
     expect(cliSrc).toContain('process.env.BROWSE_TAB');
-    expect(cliSrc).toContain('tabId: parseInt(browseTab');
+    expect(cliSrc).toContain('parseInt(envTab, 10)');
   });
 
   test('handleCommandInternal accepts tabId from request body', () => {
@@ -548,8 +552,11 @@ describe('BROWSE_TAB tab pinning (cross-tab isolation)', () => {
     expect(handleFn).toContain('tabId !== null');
   });
 
-  test('CLI only sends tabId when BROWSE_TAB is set', () => {
-    // Should conditionally include tabId in the body
-    expect(cliSrc).toContain('browseTab ? { tabId:');
+  test('CLI only sends tabId when it is a valid number', () => {
+    // Body should conditionally include tabId. Historically that was keyed off
+    // the BROWSE_TAB env var. After the make-pdf refactor, the CLI also honors
+    // a --tab-id <N> flag on the CLI itself, so the check is "tabId defined
+    // AND not NaN" rather than literally inspecting the env var.
+    expect(cliSrc).toContain('tabId !== undefined && !isNaN(tabId)');
   });
 });

@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.4.0.0] - 2026-04-19
+## [1.5.0.0] - 2026-04-20
 
 ## **Your sidebar agent now defends itself against prompt injection.**
 
@@ -59,6 +59,38 @@ Also: attribute-injection fix in `escapeHtml` (escapes `"` and `'` now), `GSTACK
 Supabase migration `004_attack_telemetry.sql` adds five nullable columns to `telemetry_events` (`security_url_domain`, `security_payload_hash`, `security_confidence`, `security_layer`, `security_verdict`) plus two partial indices for dashboard aggregation. `community-pulse` edge function aggregates the security section. Run `cd supabase && ./verify-rls.sh` and deploy via your normal Supabase deploy flow.
 
 ---
+
+## [1.4.0.0] - 2026-04-20
+
+## **Turn any markdown file into a PDF that looks finished.**
+
+The new `/make-pdf` skill takes a `.md` file and produces a publication-quality PDF. 1 inch margins. Helvetica. Page numbers in the footer. Running header with the doc title. Curly quotes, em dashes, ellipsis (…). Optional cover page. Optional clickable table of contents. Optional diagonal DRAFT watermark. Copy any paragraph out of the PDF and paste it into a Google Doc: it pastes as one clean block, not "S a i l i n g" spaced out letter by letter. That last part is the whole game. Most markdown-to-PDF tools produce output that reads like a legal document run through a scanner three times. This one reads like a real essay or a real letter.
+
+### What you can do now
+
+- `$P generate letter.md` writes a clean letter PDF to `/tmp/letter.pdf` with sensible defaults.
+- `$P generate --cover --toc --author "Garry Tan" --title "On Horizons" essay.md essay.pdf` adds a left-aligned cover page (title, subtitle, date, hairline rule) and a TOC from your H1/H2/H3 headings.
+- `$P generate --watermark DRAFT memo.md draft.pdf` overlays a diagonal DRAFT watermark on every page. Send as draft. Drop the flag when it's final.
+- `$P generate --no-chapter-breaks memo.md` disables the default "every H1 starts a new page" behavior for memos that happen to have multiple top-level headings.
+- `$P generate --allow-network essay.md` lets external images load. Off by default so someone else's markdown can't phone home through a tracking pixel when you generate their PDF.
+- `$P preview essay.md` renders the same HTML and opens it in your browser. Refresh as you edit. Skip the PDF round trip until you're ready.
+- `$P setup` verifies browse + Chromium + pdftotext are installed and runs an end-to-end smoke test.
+
+### Why the text actually copies cleanly
+
+Headless Chromium emits per-glyph `Tj` operators for webfonts with non-standard metrics tables. That's why every other "markdown to PDF" tool produces PDFs where copy-paste turns "Sailing" into "S a i l i n g". We ship with system Helvetica for everything ... Chromium has native metrics for it and emits clean word-level `Tj` operators. The CI matrix runs a combined-features fixture (smartypants + hyphens + ligatures + bold/italic + inline code + lists + blockquote + chapter breaks, all on) through `pdftotext` and asserts the extracted text matches a handwritten expected file. If any feature breaks extraction, the gate fails.
+
+### Under the hood
+
+make-pdf shells out to `browse` for Chromium lifecycle. No second Playwright install, no second 58MB binary, no second codesigning dance. `$B pdf` grew from "take a screenshot as A4" into a real PDF engine with `--format`/`--width`/`--height`, `--margins`, `--header-template`/`--footer-template`, `--page-numbers`, `--tagged`, `--outline`, `--toc`, `--tab-id`, and `--from-file` for large payloads (Windows argv caps). `$B load-html` and `$B js` got `--tab-id` too, so parallel `$P generate` calls never race on the active tab. `$B newtab --json` returns structured output so make-pdf can parse the tab ID without regex-matching log strings.
+
+### For contributors
+
+- Skill file: `make-pdf/SKILL.md.tmpl`. Binary source: `make-pdf/src/`. Test fixtures: `make-pdf/test/fixtures/`. CI workflow: `.github/workflows/make-pdf-gate.yml`.
+- New resolver `{{MAKE_PDF_SETUP}}` emits the `$P=` alias with the same discovery order as `$B`: `MAKE_PDF_BIN` env override, then local skill root, then global install, then PATH.
+- Combined-features copy-paste gate is the P0 test in `make-pdf/test/e2e/combined-gate.test.ts`. Per-feature gates are P1 diagnostics.
+- Phase 4 deferrals: vendored Paged.js for accurate TOC page numbers, vendored highlight.js for syntax highlighting, drop caps, pull quotes, CMYK safe conversion, two-column layout.
+- Preamble bash now emits `_EXPLAIN_LEVEL` and `_QUESTION_TUNING` so downstream skills can read them at runtime. Golden-file fixtures updated to match.
 
 ## [1.3.0.0] - 2026-04-19
 

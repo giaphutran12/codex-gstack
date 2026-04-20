@@ -13,6 +13,7 @@ export interface HostPaths {
   binDir: string;
   browseDir: string;
   designDir: string;
+  makePdfDir: string;
 }
 
 /**
@@ -30,6 +31,7 @@ function buildHostPaths(): Record<string, HostPaths> {
         binDir: '$GSTACK_BIN',
         browseDir: '$GSTACK_BROWSE',
         designDir: '$GSTACK_DESIGN',
+        makePdfDir: '$GSTACK_MAKE_PDF',
       };
     } else {
       const root = `~/${config.globalRoot}`;
@@ -39,6 +41,7 @@ function buildHostPaths(): Record<string, HostPaths> {
         binDir: `${root}/bin`,
         browseDir: `${root}/browse/dist`,
         designDir: `${root}/design/dist`,
+        makePdfDir: `${root}/make-pdf/dist`,
       };
     }
   }
