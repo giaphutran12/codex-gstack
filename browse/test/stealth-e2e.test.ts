@@ -65,7 +65,7 @@ describe('stealth e2e — fingerprint verification', () => {
     expect(vendor).not.toContain('SwiftShader');
   });
 
-  test('WebGL renderer is spoofed to Apple M1 Pro', async () => {
+  test('WebGL renderer is spoofed to an Apple chip', async () => {
     const renderer = await page.evaluate(() => {
       const canvas = document.createElement('canvas');
       const gl = canvas.getContext('webgl');
@@ -75,7 +75,7 @@ describe('stealth e2e — fingerprint verification', () => {
       return gl.getParameter(ext.UNMASKED_RENDERER_WEBGL);
     });
     expect(renderer).toBeTruthy();
-    expect(renderer).toContain('Apple M1 Pro');
+    expect(renderer).toMatch(/Apple.*M[123]/);
     expect(renderer).not.toContain('SwiftShader');
     expect(renderer).not.toContain('llvmpipe');
   });
@@ -91,7 +91,7 @@ describe('stealth e2e — fingerprint verification', () => {
     });
     // WebGL2 might not be available in all environments
     if (renderer !== null) {
-      expect(renderer).toContain('Apple M1 Pro');
+      expect(renderer).toMatch(/Apple.*M[123]/);
     }
   });
 

@@ -53,8 +53,17 @@ export async function applyStealthPatches(
     gpuVendor?: string;
   },
 ): Promise<void> {
+  // Default GPU strings match common real-world Mac hardware.
+  // Vary slightly across sessions to avoid creating a static fingerprint.
+  const gpuVariants = [
+    'ANGLE (Apple, Apple M1 Pro, OpenGL 4.1)',
+    'ANGLE (Apple, Apple M2, OpenGL 4.1)',
+    'ANGLE (Apple, Apple M1, OpenGL 4.1)',
+    'ANGLE (Apple, Apple M3, OpenGL 4.1)',
+    'ANGLE (Apple, Apple M1 Max, OpenGL 4.1)',
+  ];
   const gpuVendor = options?.gpuVendor ?? 'Google Inc. (Apple)';
-  const gpuRenderer = options?.gpuRenderer ?? 'ANGLE (Apple, Apple M1 Pro, OpenGL 4.1)';
+  const gpuRenderer = options?.gpuRenderer ?? gpuVariants[Math.floor(Math.random() * gpuVariants.length)];
 
   await context.addInitScript(
     ([vendor, renderer]: [string, string]) => {
@@ -259,11 +268,18 @@ export async function applyStealthPatches(
       // 9. FUNCTION toString PROTECTION
       // ========================================
       // Make overridden functions look native to .toString() checks.
+      // SECURITY: Use a WeakMap with a frozen lookup to prevent malicious pages
+      // from exfiltrating the map via Map.prototype.has/get monkeypatching.
+      // WeakMap doesn't iterate and can't be fully leaked via prototype hooks.
       const nativeStr = Function.prototype.toString;
-      const overrides = new Map<Function, string>();
+      const overrides = new WeakMap<Function, string>();
+      // Freeze a reference to the original WeakMap methods before any page
+      // script can monkeypatch them.
+      const wmHas = WeakMap.prototype.has.bind(overrides);
+      const wmGet = WeakMap.prototype.get.bind(overrides);
 
       Function.prototype.toString = function () {
-        if (overrides.has(this)) return overrides.get(this)!;
+        if (wmHas(this)) return wmGet(this)!;
         return nativeStr.call(this);
       };
       overrides.set(Function.prototype.toString, 'function toString() { [native code] }');

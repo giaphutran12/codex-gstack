@@ -110,6 +110,21 @@ describe('init script coverage', () => {
     expect(source).toContain('[native code]');
   });
 
+  test('uses WeakMap (not Map) for toString overrides to prevent exfiltration', () => {
+    // Security: Map can be exfiltrated via Map.prototype.has monkeypatching.
+    // WeakMap with bound methods prevents this attack vector.
+    expect(source).toContain('new WeakMap');
+    expect(source).toContain('WeakMap.prototype.has.bind');
+    expect(source).toContain('WeakMap.prototype.get.bind');
+    // Must NOT use plain Map for the override store
+    expect(source).not.toMatch(/new Map[<(]/); 
+  });
+
+  test('GPU renderer varies across sessions (anti-fingerprint)', () => {
+    expect(source).toContain('gpuVariants');
+    expect(source).toContain('Math.random');
+  });
+
   test('handles mediaDevices for containers', () => {
     expect(source).toContain('mediaDevices');
     expect(source).toContain('enumerateDevices');
@@ -184,7 +199,8 @@ describe('applyStealthPatches API', () => {
     await applyStealthPatches(mockContext);
     const [vendor, renderer] = receivedArg as [string, string];
     expect(vendor).toContain('Apple');
-    expect(renderer).toContain('M1 Pro');
+    // Renderer varies across sessions but should always be an Apple chip
+    expect(renderer).toMatch(/Apple.*M[123]/);
   });
 
   test('init script function is serializable (no closures over Node APIs)', async () => {
