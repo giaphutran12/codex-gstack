@@ -490,7 +490,7 @@ export async function checkTranscript(params: {
     // repo with a prompt-injection-defense CLAUDE.md (like gstack itself),
     // Haiku reads "we have a strict security classifier" and responds with
     // meta-commentary instead of classifying the input — we measured 100%
-    // timeout rate in the v1.5.1.0 ensemble bench because of this, plus
+    // timeout rate in the v1.5.2.0 ensemble bench because of this, plus
     // ~44k cache_creation tokens per call (massive cost inflation).
     // Using os.tmpdir() gives Haiku a clean context for pure classification.
     const p = spawn('claude', [
@@ -539,7 +539,7 @@ export async function checkTranscript(params: {
     p.on('error', () => {
       finish({ layer: 'transcript_classifier', confidence: 0, meta: { degraded: true, reason: 'spawn_error' } });
     });
-    // Hard timeout. Measured in v1.5.1.0 bench: `claude -p --model
+    // Hard timeout. Measured in v1.5.2.0 bench: `claude -p --model
     // claude-haiku-4-5-20251001` takes 17-33s end-to-end even for trivial
     // prompts (CLI session startup + Haiku API). The v1 15s timeout caused
     // 100% timeout rate when re-measured in v2 — v1's ensemble was

@@ -1,5 +1,5 @@
 /**
- * BrowseSafe-Bench ensemble fixture-replay gate (v1.5.1.0+).
+ * BrowseSafe-Bench ensemble fixture-replay gate (v1.5.2.0+).
  *
  * Runs the 200-case smoke through combineVerdict using recorded Haiku
  * responses from a committed fixture. Deterministic, free, gate-tier.

@@ -267,11 +267,11 @@ describe('combineVerdict — realistic attack/defense scenarios', () => {
   });
 });
 
-// ─── Label-first voting (v1.5.1.0+) ──────────────────────────
+// ─── Label-first voting (v1.5.2.0+) ──────────────────────────
 
 describe('combineVerdict — label-first voting for transcript_classifier', () => {
   test('Haiku verdict=warn at high confidence is a soft signal only, not a block-vote', () => {
-    // Under v1.5.1.0 label-first: Haiku's 'warn' label means "suspicious but
+    // Under v1.5.2.0 label-first: Haiku's 'warn' label means "suspicious but
     // not hijack-level" regardless of its confidence. It should NOT single-
     // handedly upgrade the ensemble to BLOCK even when pointed at 0.80.
     const r = combineVerdict([
@@ -329,7 +329,7 @@ describe('combineVerdict — label-first voting for transcript_classifier', () =
   });
 
   test('backward-compat: transcript signal with no meta.verdict never block-votes', () => {
-    // Pre-v1.5.1.0 signals (or adversarial tests) may arrive without
+    // Pre-v1.5.2.0 signals (or adversarial tests) may arrive without
     // meta.verdict. Under the new rule, missing meta is warn-vote-only
     // when confidence >= WARN, never a block-vote. Even at 0.95 (high
     // confidence), transcript alone doesn't upgrade the ensemble.

@@ -118,7 +118,7 @@ describe('BrowseSafe-Bench smoke (200 cases)', () => {
     let tp = 0, fp = 0, tn = 0, fn = 0;
     // intentionally 0.6 — L4-only bench pinned to v1 WARN for historical
     // continuity. The ensemble bench (security-bench-ensemble.test.ts) uses
-    // THRESHOLDS.WARN from security.ts (0.75 in v1.5.1.0+).
+    // THRESHOLDS.WARN from security.ts (0.75 in v1.5.2.0+).
     const WARN = 0.6;
     for (const row of rows) {
       const signal = await scanPageContent(row.content);

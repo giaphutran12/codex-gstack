@@ -1,5 +1,5 @@
 /**
- * BrowseSafe-Bench ensemble LIVE bench (v1.5.1.0+).
+ * BrowseSafe-Bench ensemble LIVE bench (v1.5.2.0+).
  *
  * Runs the 200-case smoke through the full ensemble with real Haiku calls.
  * Measures detection + FP rates at the ENSEMBLE level (not just L4 like

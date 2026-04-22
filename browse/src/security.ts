@@ -88,7 +88,7 @@ export interface StatusDetail {
 
 /**
  * Combine per-layer signals into a single verdict. Post-v2 ensemble rule
- * (v1.5.1.0+) is label-first for the transcript layer: Haiku's verdict
+ * (v1.5.2.0+) is label-first for the transcript layer: Haiku's verdict
  * label is the primary signal, not its self-reported confidence. Other ML
  * layers (testsavant_content, deberta_content) remain confidence-based
  * because they emit only a scalar.
@@ -205,7 +205,7 @@ export function combineVerdict(signals: LayerSignal[], opts: CombineVerdictOpts 
   // Single-layer BLOCK. For tool-output, BLOCK directly; for user-input,
   // degrade to WARN (SO-FP mitigation).
   //
-  // Asymmetric thresholds (v1.5.1.0+):
+  // Asymmetric thresholds (v1.5.2.0+):
   //  - Content classifiers (testsavant, deberta): require confidence
   //    >= THRESHOLDS.SOLO_CONTENT_BLOCK (0.92). These are label-less so the
   //    bar is higher — pattern-matching on "suspicious text" alone isn't

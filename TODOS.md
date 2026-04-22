@@ -241,11 +241,11 @@ defend the compiled-side ingress.
 
 ### ML Prompt Injection Classifier — v2 Follow-ups
 
-#### ~~Cut Haiku false-positive rate from 44% toward ~15% (P0)~~ — SHIPPED in v1.5.1.0
+#### ~~Cut Haiku false-positive rate from 44% toward ~15% (P0)~~ — SHIPPED in v1.5.2.0
 
 Measured result (500-case BrowseSafe-Bench smoke): detection 67.3% → **56.2%**, FP 44.1% → **22.9%**. Gate passes (detection ≥ 55%, FP ≤ 25%). Knobs that landed: label-first ensemble voting (verdict label trumps numeric confidence for transcript layer), hallucination guard (`verdict=block` at conf < 0.40 → warn-vote), new `THRESHOLDS.SOLO_CONTENT_BLOCK = 0.92` for label-less content classifiers, label-first extension to toolOutput path, tighter Haiku prompt + 8 few-shot exemplars, pinned Haiku model, `claude -p` spawn from `os.tmpdir()` so CLAUDE.md can't poison the classifier, timeout bumped 15s → 45s. CI gate: `browse/test/security-bench-ensemble.test.ts` replays fixture, fail-closed on missing fixture + security-layer diff. The original plan's stop-loss revert order didn't move the FP needle (FPs came from single-layer-BLOCK paths, not ensemble); the real levers turned out to be architectural (label-first) plus a new decoupled threshold.
 
-See CHANGELOG.md [1.5.1.0] for the full shipped summary.
+See CHANGELOG.md [1.5.2.0] for the full shipped summary.
 
 #### Original spec (pre-ship, retained for archive)
 
