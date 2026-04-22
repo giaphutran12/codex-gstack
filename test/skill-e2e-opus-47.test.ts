@@ -99,7 +99,7 @@ const ROUTING_CASES: RoutingCase[] = [
   // Positive — should route
   { name: 'pos-wtf-bug',    prompt: "wtf is this error coming from auth.ts:47 when the cookie expires?",           shouldRoute: true, expectedSkill: 'investigate' },
   { name: 'pos-send-it',    prompt: "ok this is good enough, let's send it.",                                       shouldRoute: true, expectedSkill: 'ship' },
-  { name: 'pos-does-it-work', prompt: "does this feature work on mobile? can you check the deploy?",                shouldRoute: true, expectedSkill: 'qa' },
+  { name: 'pos-does-it-work', prompt: "I just pushed the login flow changes. Test the deployed site and find any bugs.",                shouldRoute: true, expectedSkill: 'qa' },
   // Negative — should NOT route
   { name: 'neg-syntax-q',   prompt: "wtf does this Python list comprehension syntax even mean, [x for x in y if z]?", shouldRoute: false },
   { name: 'neg-algo-q',     prompt: "does this bubble sort algorithm actually work in O(n log n)?",                   shouldRoute: false },
