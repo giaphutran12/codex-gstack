@@ -786,6 +786,27 @@ function killAgent(targetTabId?: number | null): void {
   agentStartTime = null;
   currentMessage = null;
   agentStatus = 'idle';
+  // Reset per-tab agent state too.  Without this, /sidebar-command on the
+  // same tab after a kill would see tabState.status === 'processing' (the
+  // legacy globals-only reset missed it) and fall into the queue branch
+  // instead of spawning.  When a specific tab was targeted, reset only
+  // that tab; otherwise reset ALL tabs (e.g. session-new kills everything).
+  if (targetTabId != null) {
+    const state = tabAgents.get(targetTabId);
+    if (state) {
+      state.status = 'idle';
+      state.startTime = null;
+      state.currentMessage = null;
+      state.queue = [];
+    }
+  } else {
+    for (const state of tabAgents.values()) {
+      state.status = 'idle';
+      state.startTime = null;
+      state.currentMessage = null;
+      state.queue = [];
+    }
+  }
 }
 
 // Agent health check — detect hung processes
