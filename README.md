@@ -359,12 +359,42 @@ I open sourced how I build software. You can fork it and make it your own.
 > Come work at YC — [ycombinator.com/software](https://ycombinator.com/software)
 > Extremely competitive salary and equity. San Francisco, Dogpatch District.
 
+## Cross-machine memory with GBrain sync
+
+gstack accumulates a lot of useful state on your laptop: learnings, CEO
+plans, design docs, retros, developer profile. Today, all of that dies when
+you switch machines. **GBrain sync** optionally pushes a curated, secret-scanned
+subset to a private git repo so your memory follows you, and (if you use
+GBrain) becomes indexable there.
+
+One command to turn it on:
+
+```bash
+gstack-brain-init
+```
+
+That creates a private GitHub repo (or any git remote you prefer —
+GitLab, Gitea, self-hosted). Every skill run syncs the queue at its
+start and end boundaries. No daemon, no background process. A one-time
+privacy prompt asks how much you want to share (everything allowlisted /
+artifacts only / off). Secret-shaped content (AWS keys, GitHub tokens,
+PEM blocks, JWTs, etc.) is blocked from sync before it leaves your
+machine.
+
+New machine?  Copy `~/.gstack-brain-remote.txt` over, run
+`gstack-brain-restore`, and yesterday's learnings surface on today's
+laptop.
+
+Full guide: [docs/gbrain-sync.md](docs/gbrain-sync.md) •
+Error index: [docs/gbrain-sync-errors.md](docs/gbrain-sync-errors.md)
+
 ## Docs
 
 | Doc | What it covers |
 |-----|---------------|
 | [Skill Deep Dives](docs/skills.md) | Philosophy, examples, and workflow for every skill (includes Greptile integration) |
 | [Builder Ethos](ETHOS.md) | Builder philosophy: Boil the Lake, Search Before Building, three layers of knowledge |
+| [GBrain Sync](docs/gbrain-sync.md) | Cross-machine memory setup, privacy modes, troubleshooting |
 | [Architecture](ARCHITECTURE.md) | Design decisions and system internals |
 | [Browser Reference](BROWSER.md) | Full command reference for `/browse` |
 | [Contributing](CONTRIBUTING.md) | Dev setup, testing, contributor mode, and dev mode |
