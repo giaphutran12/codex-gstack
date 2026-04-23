@@ -18,6 +18,7 @@
 
 import type { TemplateContext } from './types';
 import { generateModelOverlay } from './model-overlay';
+import { generateHostOverlay } from './host-overlay';
 import { generateQuestionTuning } from './question-tuning';
 
 // Core bootstrap
@@ -103,6 +104,7 @@ export function generatePreamble(ctx: TemplateContext): string {
     ...(tier >= 2 ? [generateAskUserFormat(ctx)] : []),
     generateBrainSyncBlock(ctx),
     generateModelOverlay(ctx),
+    generateHostOverlay(ctx),
     generateVoiceDirective(tier),
     ...(tier >= 2 ? [
       generateContextRecovery(ctx),

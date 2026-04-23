@@ -1788,6 +1788,31 @@ describe('Codex generation (--host codex)', () => {
     expect(content).not.toContain('~/.codex/skills/gstack/bin/gstack-config get telemetry');
   });
 
+  test('Codex host defaults every generated skill to the GPT/Codex runtime patches', () => {
+    for (const skill of CODEX_SKILLS) {
+      const content = fs.readFileSync(path.join(AGENTS_DIR, skill.codexName, 'SKILL.md'), 'utf-8');
+      expect(content).toContain('Model-Specific Behavioral Patch (gpt-5.4)');
+      expect(content).toContain('Host Runtime Patch (OpenAI Codex CLI)');
+      expect(content).toContain('Codex tool mapping');
+      if (content.includes('MODEL_OVERLAY:')) {
+        expect(content).toContain('MODEL_OVERLAY: gpt-5.4');
+      }
+      expect(content).not.toContain('MODEL_OVERLAY: claude');
+      expect(content).not.toContain('Model-Specific Behavioral Patch (claude)');
+    }
+  });
+
+  test('Codex host rewrites Claude-only subagent/tool vocabulary', () => {
+    for (const skill of CODEX_SKILLS) {
+      const content = fs.readFileSync(path.join(AGENTS_DIR, skill.codexName, 'SKILL.md'), 'utf-8');
+      expect(content).not.toContain('subagent_type: "general-purpose"');
+      expect(content).not.toContain("Claude Code's Agent tool");
+      expect(content).not.toContain('using the Agent tool');
+      expect(content).not.toContain('via the Agent tool');
+      expect(content).not.toContain('Use the Agent tool');
+    }
+  });
+
   // ─── Path rewriting regression tests ─────────────────────────
 
   test('sidecar paths point to .agents/skills/gstack/review/ (not gstack-review/)', () => {
