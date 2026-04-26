@@ -21,7 +21,7 @@ const codex: HostConfig = {
   generation: {
     generateMetadata: true,
     metadataFormat: 'openai.yaml',
-    skipSkills: ['codex'],  // Codex skill is a Claude wrapper around codex exec
+    skipSkills: ['codex', 'claude'],  // /codex self-invokes, /claude reintroduces nested-host review paths
   },
 
   pathRewrites: [
