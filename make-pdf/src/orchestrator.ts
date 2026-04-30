@@ -25,6 +25,8 @@ import type { GenerateOptions, PreviewOptions } from "./types";
 import { ExitCode } from "./types";
 import * as browseClient from "./browseClient";
 
+const SAFE_TMP_DIR = process.platform === "win32" ? os.tmpdir() : "/tmp";
+
 class ProgressReporter {
   private readonly quiet: boolean;
   private readonly verbose: boolean;
@@ -72,7 +74,7 @@ export async function generate(opts: GenerateOptions): Promise<string> {
   }
 
   const outputPath = path.resolve(
-    opts.output ?? path.join(os.tmpdir(), `${deriveSlug(input)}.pdf`),
+    opts.output ?? path.join(SAFE_TMP_DIR, `${deriveSlug(input)}.pdf`),
   );
 
   // Stage 1: read markdown
@@ -193,7 +195,7 @@ export async function preview(opts: PreviewOptions): Promise<string> {
   progress.end("Rendering HTML", `${rendered.meta.wordCount} words`);
 
   // Write to a stable path under /tmp so the user can reload in the same tab.
-  const previewPath = path.join(os.tmpdir(), `make-pdf-preview-${deriveSlug(input)}.html`);
+  const previewPath = path.join(SAFE_TMP_DIR, `make-pdf-preview-${deriveSlug(input)}.html`);
   fs.writeFileSync(previewPath, rendered.html, "utf8");
 
   progress.begin("Opening preview");
@@ -213,7 +215,7 @@ function deriveSlug(p: string): string {
 
 function tmpFile(ext: string): string {
   const hash = crypto.randomBytes(6).toString("hex");
-  return path.join(os.tmpdir(), `make-pdf-${process.pid}-${hash}.${ext}`);
+  return path.join(SAFE_TMP_DIR, `make-pdf-${process.pid}-${hash}.${ext}`);
 }
 
 function tryOpen(pathOrUrl: string): void {
