@@ -11,9 +11,11 @@
  *   1. $GSTACK_BROWSE_BIN env override (preferred, matches v1.24 GSTACK_*_BIN pattern)
  *   2. $BROWSE_BIN env override (back-compat alias)
  *   3. sibling dir: dirname(argv[0])/../browse/dist/browse[.exe]
- *   4. ~/.claude/skills/gstack/browse/dist/browse[.exe]
- *   5. PATH lookup via Bun.which('browse') — handles Windows PATHEXT natively
- *   6. error with setup hint
+ *   4. ~/.gstack/repos/gstack/browse/dist/browse[.exe]
+ *   5. ~/.codex/skills/gstack/browse/dist/browse[.exe]
+ *   6. ~/.claude/skills/gstack/browse/dist/browse[.exe]
+ *   7. PATH lookup via Bun.which('browse') — handles Windows PATHEXT natively
+ *   8. error with setup hint
  *
  * Windows quirks:
  *   - bun build --compile --outfile X emits X.exe on win32, so candidate paths
@@ -119,11 +121,19 @@ export function resolveBrowseBin(env: NodeJS.ProcessEnv = process.env): string {
     if (found) return found;
   }
 
-  // 4: global install.
+  // 4 + 5 + 6: global/team installs. Prefer canonical gstack repo and Codex
+  // runtime before Claude's copy so Codex-hosted make-pdf does not talk to a
+  // stale browse binary.
   const home = os.homedir();
-  const globalPath = path.join(home, ".claude/skills/gstack/browse/dist/browse");
-  const globalFound = findExecutable(globalPath);
-  if (globalFound) return globalFound;
+  const globalCandidates = [
+    path.join(home, ".gstack/repos/gstack/browse/dist/browse"),
+    path.join(home, ".codex/skills/gstack/browse/dist/browse"),
+    path.join(home, ".claude/skills/gstack/browse/dist/browse"),
+  ];
+  for (const candidate of globalCandidates) {
+    const found = findExecutable(candidate);
+    if (found) return found;
+  }
 
   // 5: PATH lookup via Bun.which — handles Windows PATHEXT natively (no `which`
   // dependency on cmd.exe / PowerShell, no `where`-vs-`which` branch).
@@ -142,7 +152,7 @@ export function resolveBrowseBin(env: NodeJS.ProcessEnv = process.env): string {
       `  - $GSTACK_BROWSE_BIN (${env.GSTACK_BROWSE_BIN || "unset"})`,
       `  - $BROWSE_BIN (${env.BROWSE_BIN || "unset"})`,
       `  - sibling: ${siblingCandidates.join(", ")}`,
-      `  - global: ${globalPath}`,
+      `  - global: ${globalCandidates.join(", ")}`,
       "  - PATH: `browse`",
       "",
       "To fix: run gstack setup from the gstack repo:",
