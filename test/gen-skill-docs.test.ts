@@ -321,14 +321,12 @@ describe('gen-skill-docs', () => {
     // added (per /sync-gbrain plan §4). Ratcheted 35000 → 36500 in v1.27.0.0
     // when generate-brain-sync-block.ts gained the gbrain_mcp_mode probe +
     // remote-mode ARTIFACTS_SYNC status line (Path 4 of /setup-gbrain).
+    // Ratcheted 36500 -> 37500 after upstream v1.27.1/1.27.2 added more
+    // plan-review preamble guidance while keeping the same overall structure.
     for (const skill of reviewSkills) {
       const content = fs.readFileSync(skill.path, 'utf-8');
       const preamble = extractPreambleBeforeWorkflow(content, skill.markers);
-<<<<<<< HEAD
-      expect(Buffer.byteLength(preamble, 'utf-8')).toBeLessThan(36_500);
-=======
-      expect(Buffer.byteLength(preamble, 'utf-8')).toBeLessThan(35_000);
->>>>>>> ca42f1d5 (test: raise plan review preamble budget)
+      expect(Buffer.byteLength(preamble, 'utf-8')).toBeLessThan(37_500);
     }
   });
 

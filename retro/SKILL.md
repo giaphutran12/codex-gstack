@@ -129,7 +129,11 @@ In plan mode, allowed because they inform the plan: `$B`, `$D`, `codex exec`/`co
 
 If the user invokes a skill in plan mode, the skill takes precedence over generic plan mode behavior. **Treat the skill file as executable instructions, not reference.** Follow it step by step starting from Step 0; the first AskUserQuestion is the workflow entering plan mode, not a violation of it. AskUserQuestion (any variant — `mcp__*__AskUserQuestion` or native; see "AskUserQuestion Format → Tool resolution") satisfies plan mode's end-of-turn requirement. If no variant is callable, fall back to writing the decision brief into the plan file as a `## Decisions to confirm` section + ExitPlanMode — never silently auto-decide. At a STOP point, stop immediately. Do not continue the workflow or call ExitPlanMode there. Commands marked "PLAN MODE EXCEPTION — ALWAYS RUN" execute. Call ExitPlanMode only after the skill workflow completes, or if the user tells you to cancel the skill or leave plan mode.
 
-If `PROACTIVE` is `"false"`, do not auto-invoke or proactively suggest skills. If a skill seems useful, ask: "I think /skillname might help here — want me to run it?"
+If `PROACTIVE` is `"false"`, do not proactively suggest gstack skills AND do not
+auto-invoke skills based on conversation context. Only run skills the user explicitly
+types (e.g., /qa, /ship). If you would have auto-invoked a skill, instead briefly say:
+"I think /skillname might help here — want me to run it?" and wait for confirmation.
+The user opted out of proactive behavior.
 
 If `SKILL_PREFIX` is `"true"`, suggest/invoke `/gstack-*` names. Disk paths stay `~/.claude/skills/gstack/[skill-name]/SKILL.md`.
 
@@ -137,11 +141,26 @@ If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/gstack/g
 
 If output shows `JUST_UPGRADED <from> <to>`: print "Running gstack v{to} (just updated!)". If `SPAWNED_SESSION` is true, skip feature discovery.
 
-Feature discovery, max one prompt per session:
-- Missing `~/.claude/skills/gstack/.feature-prompted-continuous-checkpoint`: AskUserQuestion for Continuous checkpoint auto-commits. If accepted, run `~/.claude/skills/gstack/bin/gstack-config set checkpoint_mode continuous`. Always touch marker.
-- Missing `~/.claude/skills/gstack/.feature-prompted-model-overlay`: inform "Model overlays are active. MODEL_OVERLAY shows the patch." Always touch marker.
+**Feature discovery markers and prompts** (one at a time, max one per session):
 
-After upgrade prompts, continue workflow.
+1. `~/.claude/skills/gstack/.feature-prompted-continuous-checkpoint` →
+   Prompt: "Continuous checkpoint auto-commits your work as you go with `WIP:` prefix
+   so you never lose progress to a crash. Local-only by default — doesn't push
+   anywhere unless you turn that on. Want to try it?"
+   Options: A) Enable continuous mode, B) Show me first (print the section from
+   the preamble Continuous Checkpoint Mode), C) Skip.
+   If A: run `~/.claude/skills/gstack/bin/gstack-config set checkpoint_mode continuous`.
+   Always: `touch ~/.claude/skills/gstack/.feature-prompted-continuous-checkpoint`
+
+2. `~/.claude/skills/gstack/.feature-prompted-model-overlay` →
+   Inform only (no prompt): "Model overlays are active. `MODEL_OVERLAY: {model}`
+   shown in the preamble output tells you which behavioral patch is applied.
+   Override with `--model` when regenerating skills (e.g., `bun run gen:skill-docs
+   --model gpt-5.4`). Default for this generated skill is claude."
+   Always: `touch ~/.claude/skills/gstack/.feature-prompted-model-overlay`
+
+After handling JUST_UPGRADED (prompts done or skipped), continue with the skill
+workflow.
 
 If `WRITING_STYLE_PENDING` is `yes`: ask once about writing style:
 
