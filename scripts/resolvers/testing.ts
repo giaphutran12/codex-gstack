@@ -186,7 +186,7 @@ function generateTestCoverageAuditInner(mode: CoverageAuditMode): string {
   if (mode === 'ship') {
     sections.push(`100% coverage is the goal — every untested path is a path where bugs hide and vibe coding becomes yolo coding. Evaluate what was ACTUALLY coded (from the diff), not what was planned.`);
   } else if (mode === 'plan') {
-    sections.push(`100% coverage is the goal. Evaluate every codepath in the plan and ensure the plan includes tests for each one. If the plan is missing tests, add them — the plan should be complete enough that implementation includes full test coverage from the start.`);
+    sections.push(`100% coverage is the goal. At plan stage, produce an expected path/test matrix, not fake file-level branch proof. Identify every planned route, state, data write, external call, user flow, and error path that implementation must cover. Diff-stage reviews will prove exact functions and branches after code exists.`);
   } else {
     sections.push(`100% coverage is the goal. Evaluate every codepath changed in the diff and identify test gaps. Gaps become INFORMATIONAL findings that follow the Fix-First flow.`);
   }
@@ -230,16 +230,34 @@ Store this number for the PR body.`);
 
   // ── Codepath tracing methodology (shared, with mode-specific source) ──
   const traceSource = mode === 'plan'
-    ? `**Step 1. Trace every codepath in the plan:**
+    ? `**Step 1. Build the expected path/test matrix from the plan:**
 
-Read the plan document. For each new feature, service, endpoint, or component described, trace how data will flow through the code — don't just list planned functions, actually follow the planned execution:`
+Read the plan document. For each planned feature, service, endpoint, component, worker, or integration, map expected behavior and test obligations. Do not invent exact filenames, functions, or branch coverage before code exists. Use existing code only when the plan names a real module or when repository search proves the likely integration point:`
     : `**${mode === 'ship' ? '1' : 'Step 1'}. Trace every codepath changed** using \`git diff origin/<base>...HEAD\`:
 
 Read every changed file. For each one, trace how data flows through the code — don't just list functions, actually follow the execution:`;
 
   const traceStep1 = mode === 'plan'
-    ? `1. **Read the plan.** For each planned component, understand what it does and how it connects to existing code.`
+    ? `1. **Read the plan.** For each planned component, identify entry points, user-visible states, data writes, external calls, and failure modes.`
     : `1. **Read the diff.** For each changed file, read the full file (not just the diff hunk) to understand context.`;
+
+  const diagramTarget = mode === 'plan'
+    ? `3. **Diagram the expected execution.** For each planned entry point or proven integration point, draw an ASCII matrix showing:
+   - Expected routes, jobs, components, services, or integrations
+   - Expected decision points from the plan (validation, permission checks, state transitions, fallbacks)
+   - Expected error paths and recovery UX
+   - Calls to existing helpers only when the plan/source evidence proves them
+   - Edge cases: null input, empty collection, invalid type, stale data, timeout, duplicate submit`
+    : `3. **Diagram the execution.** For each changed file, draw an ASCII diagram showing:
+   - Every function/method that was added or modified
+   - Every conditional branch (if/else, switch, ternary, guard clause, early return)
+   - Every error path (try/catch, rescue, error boundary, fallback)
+   - Every call to another function (trace into it — does IT have untested branches?)
+   - Every edge: what happens with null input? Empty array? Invalid type?`;
+
+  const traceConclusion = mode === 'plan'
+    ? `This is the critical step — you're building a map of what must be proven during implementation. Label speculative integration points as EXPECTED, and reserve VERIFIED branch claims for diff-stage review.`
+    : `This is the critical step — you're building a map of every line of code that can execute differently based on input. Every branch in this diagram needs a test.`;
 
   sections.push(`
 ${traceSource}
@@ -250,14 +268,9 @@ ${traceStep1}
    - What transforms it? (validation, mapping, computation)
    - Where does it go? (database write, API response, rendered output, side effect)
    - What can go wrong at each step? (null/undefined, invalid input, network failure, empty collection)
-3. **Diagram the execution.** For each changed file, draw an ASCII diagram showing:
-   - Every function/method that was added or modified
-   - Every conditional branch (if/else, switch, ternary, guard clause, early return)
-   - Every error path (try/catch, rescue, error boundary, fallback)
-   - Every call to another function (trace into it — does IT have untested branches?)
-   - Every edge: what happens with null input? Empty array? Invalid type?
+${diagramTarget}
 
-This is the critical step — you're building a map of every line of code that can execute differently based on input. Every branch in this diagram needs a test.`);
+${traceConclusion}`);
 
   // ── User flow coverage (shared) ──
   sections.push(`
@@ -281,16 +294,30 @@ Code coverage isn't enough — you need to cover how real users interact with th
 Add these to your diagram alongside the code branches. A user flow with no test is just as much a gap as an untested if/else.`);
 
   // ── Check branches against tests + quality rubric (shared) ──
-  sections.push(`
-**${mode === 'ship' ? '3' : 'Step 3'}. Check each branch against existing tests:**
+  const testCheckHeading = mode === 'plan'
+    ? '**Step 3. Check each expected path against test obligations:**'
+    : `**${mode === 'ship' ? '3' : 'Step 3'}. Check each branch against existing tests:**`;
 
-Go through your diagram branch by branch — both code paths AND user flows. For each one, search for a test that exercises it:
+  const testCheckBody = mode === 'plan'
+    ? `Go through your expected matrix path by path — planned code paths AND user flows. For each one, state the test obligation and search existing tests only when existing code already covers part of the flow:
+- Planned route/API path → name the integration or request test that must exist
+- Planned validation/permission decision → require true and false path tests
+- Planned error handler/fallback → require a test that triggers that condition
+- Existing helper explicitly reused by the plan → search for its current tests and note reuse
+- User flow → require integration or E2E coverage for the journey
+- Interaction edge case → require a test for the unexpected action`
+    : `Go through your diagram branch by branch — both code paths AND user flows. For each one, search for a test that exercises it:
 - Function \`processPayment()\` → look for \`billing.test.ts\`, \`billing.spec.ts\`, \`test/billing_test.rb\`
 - An if/else → look for tests covering BOTH the true AND false path
 - An error handler → look for a test that triggers that specific error condition
 - A call to \`helperFn()\` that has its own branches → those branches need tests too
 - A user flow → look for an integration or E2E test that walks through the journey
-- An interaction edge case → look for a test that simulates the unexpected action
+- An interaction edge case → look for a test that simulates the unexpected action`;
+
+  sections.push(`
+${testCheckHeading}
+
+${testCheckBody}
 
 Quality scoring rubric:
 - ★★★  Tests behavior with edge cases AND error paths

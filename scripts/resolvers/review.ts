@@ -186,7 +186,7 @@ must be the file's terminal heading.`;
 }
 
 export function generateAntiShortcutClause(_ctx: TemplateContext): string {
-  return `**Anti-shortcut clause:** The plan file is the OUTPUT of the interactive review, not a substitute for it. Writing every finding into one plan write and calling ExitPlanMode without firing AskUserQuestion is the precise failure mode of the May 2026 transcript bug — the model explored, found issues, and dumped them into a deliverable rather than walking the user through them. If you have ANY non-trivial finding in any review section, the path from finding to ExitPlanMode goes THROUGH AskUserQuestion. Zero findings in every section is the only path to ExitPlanMode that bypasses AskUserQuestion. If you find yourself wanting to write a plan with findings before asking, stop and call AskUserQuestion now — that's the bug, recognize it.`;
+  return `**Anti-shortcut clause:** The plan file is the OUTPUT of the interactive review, not a substitute for it. Writing P0/P1/P2 plan-changing findings into one plan write and calling ExitPlanMode without firing AskUserQuestion is the precise failure mode of the May 2026 transcript bug — the model explored, found issues, and dumped them into a deliverable rather than walking the user through them. If you have any P0/P1/P2 finding that changes scope, architecture, behavior, tests, security posture, performance posture, or release risk, the path from finding to ExitPlanMode goes THROUGH AskUserQuestion. P3/TODO-level findings can wait for the section summary/TODO pass. If you find yourself wanting to write a plan with major findings before asking, stop and call AskUserQuestion now — that's the bug, recognize it.`;
 }
 
 export function generateSpecReviewLoop(_ctx: TemplateContext): string {
@@ -265,7 +265,19 @@ export function generateBenefitsFrom(ctx: TemplateContext): string {
 
   return `## Prerequisite Skill Offer
 
-When the design doc check above prints "No design doc found," offer the prerequisite
+When the design doc check above prints "No design doc found," first classify the task.
+
+Offer the prerequisite skill only when the work needs product direction, feature
+behavior definition, premise challenge, or scope framing. Skip the offer for obvious
+bugs, mechanical refactors, narrow implementation checks, CI failures, dependency
+bumps, or already-scoped tickets where the user is asking for execution/review rather
+than product thinking.
+
+If skipping, say one terse sentence such as: "No design doc found, but this is an
+obvious bug/mechanical review, so skipping /${first}." Then proceed with standard
+review.
+
+If the work needs product direction or behavior definition, offer the prerequisite
 skill before proceeding.
 
 Say to the user via AskUserQuestion:
@@ -588,8 +600,97 @@ High-confidence findings (agreed on by multiple sources) should be prioritized f
 }
 
 export function generateCodexPlanReview(ctx: TemplateContext): string {
-  // Codex host: strip entirely — Codex should never invoke itself
-  if (ctx.host === 'codex') return '';
+  if (ctx.host === 'codex') {
+    return `## Outside Voice — Independent Plan Challenge (Codex-native, recommended)
+
+After all review sections are complete, run an outside voice without shelling out to
+the Codex CLI from inside Codex. In Codex, outside voice means an independent Codex
+subagent that reads the full review skill first, then challenges the reviewed plan.
+
+**Primary path: spawn a Codex subagent**
+
+Spawn a Codex subagent with this prompt:
+
+> IMPORTANT: First read the full review skill file at \`$GSTACK_ROOT/plan-eng-review/SKILL.md\`.
+> Do NOT read or execute any other SKILL.md files or skill definition directories.
+> Stay focused on this named skill, the plan, and repository code only.
+>
+> You are an outside voice reviewing a development plan that has already been through
+> the main engineering review. Do not repeat the checklist. Find what the review missed:
+> logical gaps, unstated assumptions, overcomplexity, feasibility risks, missing
+> dependencies, sequencing problems, test blind spots, and product/engineering
+> mismatch. Be direct. No compliments. Output:
+> 1. Findings, each with severity and confidence.
+> 2. Cross-review tensions: where your view disagrees with the main review.
+> 3. Final recommendation: accept plan, revise plan, or investigate first.
+
+Give the subagent the plan file path when known. If no plan file is available, give it
+the current branch/task summary and the review findings produced in this run.
+
+Present findings under:
+
+\`\`\`
+OUTSIDE VOICE (Codex subagent):
+════════════════════════════════════════════════════════════
+<subagent output, verbatim enough to preserve findings>
+════════════════════════════════════════════════════════════
+\`\`\`
+
+**Fallback: inline outside voice**
+
+If Codex subagents are unavailable, do a separate inline pass after a deliberate context
+reset: reread the plan/review summary, argue against your own conclusions, and mark it
+\`OUTSIDE VOICE (inline fallback)\`. This fallback is weaker than a subagent but better
+than silently skipping the independent challenge.
+
+If neither subagent nor inline fallback can run, say: "Outside voice unavailable."
+
+**Cross-model tension:**
+
+After presenting the outside voice findings, note any points where the outside voice
+disagrees with the review findings from earlier sections. Flag these as:
+
+\`\`\`
+CROSS-REVIEW TENSION:
+  [Topic]: Main review said X. Outside voice says Y. [Present both perspectives neutrally.
+  State what context might change the answer.]
+\`\`\`
+
+**User Sovereignty:** Do NOT auto-incorporate outside voice recommendations into the plan.
+Present each substantive tension point to the user. The user decides. Cross-review
+agreement is a strong signal, but it is NOT permission to act. You may state which
+argument you find more compelling, but you MUST NOT apply the change without explicit
+user approval.
+
+For each P0/P1/P2 tension point that would change the plan, use the Codex decision gate:
+
+> "Cross-review disagreement on [topic]. The main review found [X] but the outside
+> voice argues [Y]. [One sentence on what context might be missing.]"
+>
+> RECOMMENDATION: Choose [A or B] because [one-line reason explaining which argument
+> is more compelling and why]. Completeness: A=X/10, B=Y/10.
+
+Options:
+- A) Accept the outside voice's recommendation (I'll apply this change)
+- B) Keep the current approach (reject the outside voice)
+- C) Investigate further before deciding
+- D) Add to TODOS.md for later
+
+Wait for the user's response. Do NOT default to accepting because you agree with the
+outside voice. If the user chooses B, the current approach stands — do not re-argue.
+
+If no tension points exist, note: "No cross-review tension — both reviewers agree."
+
+**Persist the result:**
+\`\`\`bash
+$GSTACK_ROOT/bin/gstack-review-log '{"skill":"codex-plan-review","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","status":"STATUS","source":"SOURCE","commit":"'"$(git rev-parse --short HEAD)"'"}'
+\`\`\`
+
+Substitute: STATUS = "clean" if no findings, "issues_found" if findings exist.
+SOURCE = "codex-subagent" if the subagent ran, "inline" if fallback ran, "skipped" if unavailable.
+
+---`;
+  }
 
   return `## Outside Voice — Independent Plan Challenge (optional, recommended)
 

@@ -857,7 +857,19 @@ If a design doc exists, read it. Use it as the source of truth for the problem s
 
 ## Prerequisite Skill Offer
 
-When the design doc check above prints "No design doc found," offer the prerequisite
+When the design doc check above prints "No design doc found," first classify the task.
+
+Offer the prerequisite skill only when the work needs product direction, feature
+behavior definition, premise challenge, or scope framing. Skip the offer for obvious
+bugs, mechanical refactors, narrow implementation checks, CI failures, dependency
+bumps, or already-scoped tickets where the user is asking for execution/review rather
+than product thinking.
+
+If skipping, say one terse sentence such as: "No design doc found, but this is an
+obvious bug/mechanical review, so skipping /office-hours." Then proceed with standard
+review.
+
+If the work needs product direction or behavior definition, offer the prerequisite
 skill before proceeding.
 
 Say to the user via AskUserQuestion:
@@ -949,7 +961,7 @@ Always work through the full interactive review: one section at a time (Architec
 
 **Anti-skip rule:** Never condense, abbreviate, or skip any review section (1-4) regardless of plan type (strategy, spec, code, infra). Every section in this skill exists for a reason. "This is a strategy doc so implementation sections don't apply" is always wrong — implementation details are where strategy breaks down. If a section genuinely has zero findings, say "No issues found" and move on — but you must evaluate it.
 
-**Anti-shortcut clause:** The plan file is the OUTPUT of the interactive review, not a substitute for it. Writing every finding into one plan write and calling ExitPlanMode without firing AskUserQuestion is the precise failure mode of the May 2026 transcript bug — the model explored, found issues, and dumped them into a deliverable rather than walking the user through them. If you have ANY non-trivial finding in any review section, the path from finding to ExitPlanMode goes THROUGH AskUserQuestion. Zero findings in every section is the only path to ExitPlanMode that bypasses AskUserQuestion. If you find yourself wanting to write a plan with findings before asking, stop and call AskUserQuestion now — that's the bug, recognize it.
+**Anti-shortcut clause:** The plan file is the OUTPUT of the interactive review, not a substitute for it. Writing P0/P1/P2 plan-changing findings into one plan write and calling ExitPlanMode without firing AskUserQuestion is the precise failure mode of the May 2026 transcript bug — the model explored, found issues, and dumped them into a deliverable rather than walking the user through them. If you have any P0/P1/P2 finding that changes scope, architecture, behavior, tests, security posture, performance posture, or release risk, the path from finding to ExitPlanMode goes THROUGH AskUserQuestion. P3/TODO-level findings can wait for the section summary/TODO pass. If you find yourself wanting to write a plan with major findings before asking, stop and call AskUserQuestion now — that's the bug, recognize it.
 
 ## Prior Learnings
 
@@ -1000,9 +1012,9 @@ Evaluate:
 * For each new codepath or integration point, describe one realistic production failure scenario and whether the plan accounts for it.
 * **Distribution architecture:** If this introduces a new artifact (binary, package, container), how does it get built, published, and updated? Is the CI/CD pipeline part of the plan or deferred?
 
-For each issue found in this section, call AskUserQuestion individually. One issue per call. Present options, state your recommendation, explain WHY. Do NOT batch multiple issues into one AskUserQuestion. Use the preamble's AskUserQuestion Format section. The AskUserQuestion call is a tool_use, not prose — call the tool directly.
+For each P0/P1/P2 issue that changes the plan, call AskUserQuestion individually. One issue per call. Present options, state your recommendation, explain WHY. Do NOT batch multiple issues into one AskUserQuestion. Use the preamble's AskUserQuestion Format section. The AskUserQuestion call is a tool_use, not prose — call the tool directly. P3/TODO-level findings are recorded for the section summary/TODO pass instead of interrupting the review one by one.
 
-**STOP.** Do NOT proceed to the next review section, edit the plan file with the proposed fix, or call ExitPlanMode until the user responds. An issue with an "obvious fix" is still an issue and still needs explicit user approval before it lands in the plan. Loading the AskUserQuestion schema via ToolSearch and then writing the recommendation as chat prose is the failure mode this gate exists to prevent.
+**STOP for P0/P1/P2 plan-changing issues.** Do NOT proceed to the next review section, edit the plan file with the proposed fix, or call ExitPlanMode until the user responds. An issue with an "obvious fix" still needs explicit user approval before it lands in the plan when it changes scope, architecture, behavior, tests, security posture, performance posture, or release risk. Loading the AskUserQuestion schema via ToolSearch and then writing the recommendation as chat prose is the failure mode this gate exists to prevent.
 
 ## Confidence Calibration
 
@@ -1038,13 +1050,13 @@ Evaluate:
 * Areas that are over-engineered or under-engineered relative to my preferences.
 * Existing ASCII diagrams in touched files — are they still accurate after this change?
 
-For each issue found in this section, call AskUserQuestion individually. One issue per call. Present options, state your recommendation, explain WHY. Do NOT batch multiple issues into one AskUserQuestion. Use the preamble's AskUserQuestion Format section. The AskUserQuestion call is a tool_use, not prose — call the tool directly.
+For each P0/P1/P2 issue that changes the plan, call AskUserQuestion individually. One issue per call. Present options, state your recommendation, explain WHY. Do NOT batch multiple issues into one AskUserQuestion. Use the preamble's AskUserQuestion Format section. The AskUserQuestion call is a tool_use, not prose — call the tool directly. P3/TODO-level findings are recorded for the section summary/TODO pass instead of interrupting the review one by one.
 
-**STOP.** Do NOT proceed to the next review section, edit the plan file with the proposed fix, or call ExitPlanMode until the user responds. An issue with an "obvious fix" is still an issue and still needs explicit user approval before it lands in the plan. Loading the AskUserQuestion schema via ToolSearch and then writing the recommendation as chat prose is the failure mode this gate exists to prevent.
+**STOP for P0/P1/P2 plan-changing issues.** Do NOT proceed to the next review section, edit the plan file with the proposed fix, or call ExitPlanMode until the user responds. An issue with an "obvious fix" still needs explicit user approval before it lands in the plan when it changes scope, architecture, behavior, tests, security posture, performance posture, or release risk. Loading the AskUserQuestion schema via ToolSearch and then writing the recommendation as chat prose is the failure mode this gate exists to prevent.
 
 ### 3. Test review
 
-100% coverage is the goal. Evaluate every codepath in the plan and ensure the plan includes tests for each one. If the plan is missing tests, add them — the plan should be complete enough that implementation includes full test coverage from the start.
+100% coverage is the goal. At plan stage, produce an expected path/test matrix, not fake file-level branch proof. Identify every planned route, state, data write, external call, user flow, and error path that implementation must cover. Diff-stage reviews will prove exact functions and branches after code exists.
 
 ### Test Framework Detection
 
@@ -1068,24 +1080,24 @@ ls -d test/ tests/ spec/ __tests__/ cypress/ e2e/ 2>/dev/null
 
 3. **If no framework detected:** still produce the coverage diagram, but skip test generation.
 
-**Step 1. Trace every codepath in the plan:**
+**Step 1. Build the expected path/test matrix from the plan:**
 
-Read the plan document. For each new feature, service, endpoint, or component described, trace how data will flow through the code — don't just list planned functions, actually follow the planned execution:
+Read the plan document. For each planned feature, service, endpoint, component, worker, or integration, map expected behavior and test obligations. Do not invent exact filenames, functions, or branch coverage before code exists. Use existing code only when the plan names a real module or when repository search proves the likely integration point:
 
-1. **Read the plan.** For each planned component, understand what it does and how it connects to existing code.
+1. **Read the plan.** For each planned component, identify entry points, user-visible states, data writes, external calls, and failure modes.
 2. **Trace data flow.** Starting from each entry point (route handler, exported function, event listener, component render), follow the data through every branch:
    - Where does input come from? (request params, props, database, API call)
    - What transforms it? (validation, mapping, computation)
    - Where does it go? (database write, API response, rendered output, side effect)
    - What can go wrong at each step? (null/undefined, invalid input, network failure, empty collection)
-3. **Diagram the execution.** For each changed file, draw an ASCII diagram showing:
-   - Every function/method that was added or modified
-   - Every conditional branch (if/else, switch, ternary, guard clause, early return)
-   - Every error path (try/catch, rescue, error boundary, fallback)
-   - Every call to another function (trace into it — does IT have untested branches?)
-   - Every edge: what happens with null input? Empty array? Invalid type?
+3. **Diagram the expected execution.** For each planned entry point or proven integration point, draw an ASCII matrix showing:
+   - Expected routes, jobs, components, services, or integrations
+   - Expected decision points from the plan (validation, permission checks, state transitions, fallbacks)
+   - Expected error paths and recovery UX
+   - Calls to existing helpers only when the plan/source evidence proves them
+   - Edge cases: null input, empty collection, invalid type, stale data, timeout, duplicate submit
 
-This is the critical step — you're building a map of every line of code that can execute differently based on input. Every branch in this diagram needs a test.
+This is the critical step — you're building a map of what must be proven during implementation. Label speculative integration points as EXPECTED, and reserve VERIFIED branch claims for diff-stage review.
 
 **Step 2. Map user flows, interactions, and error states:**
 
@@ -1106,15 +1118,15 @@ Code coverage isn't enough — you need to cover how real users interact with th
 
 Add these to your diagram alongside the code branches. A user flow with no test is just as much a gap as an untested if/else.
 
-**Step 3. Check each branch against existing tests:**
+**Step 3. Check each expected path against test obligations:**
 
-Go through your diagram branch by branch — both code paths AND user flows. For each one, search for a test that exercises it:
-- Function `processPayment()` → look for `billing.test.ts`, `billing.spec.ts`, `test/billing_test.rb`
-- An if/else → look for tests covering BOTH the true AND false path
-- An error handler → look for a test that triggers that specific error condition
-- A call to `helperFn()` that has its own branches → those branches need tests too
-- A user flow → look for an integration or E2E test that walks through the journey
-- An interaction edge case → look for a test that simulates the unexpected action
+Go through your expected matrix path by path — planned code paths AND user flows. For each one, state the test obligation and search existing tests only when existing code already covers part of the flow:
+- Planned route/API path → name the integration or request test that must exist
+- Planned validation/permission decision → require true and false path tests
+- Planned error handler/fallback → require a test that triggers that condition
+- Existing helper explicitly reused by the plan → search for its current tests and note reuse
+- User flow → require integration or E2E coverage for the journey
+- Interaction edge case → require a test for the unexpected action
 
 Quality scoring rubric:
 - ★★★  Tests behavior with edge cases AND error paths
@@ -1222,9 +1234,9 @@ This file is consumed by `/qa` and `/qa-only` as primary test input. Include onl
 
 For LLM/prompt changes: check the "Prompt/LLM changes" file patterns listed in CLAUDE.md. If this plan touches ANY of those patterns, state which eval suites must be run, which cases should be added, and what baselines to compare against. Then use AskUserQuestion to confirm the eval scope with the user.
 
-For each issue found in this section, call AskUserQuestion individually. One issue per call. Present options, state your recommendation, explain WHY. Do NOT batch multiple issues into one AskUserQuestion. Use the preamble's AskUserQuestion Format section. The AskUserQuestion call is a tool_use, not prose — call the tool directly.
+For each P0/P1/P2 issue that changes the plan, call AskUserQuestion individually. One issue per call. Present options, state your recommendation, explain WHY. Do NOT batch multiple issues into one AskUserQuestion. Use the preamble's AskUserQuestion Format section. The AskUserQuestion call is a tool_use, not prose — call the tool directly. P3/TODO-level findings are recorded for the section summary/TODO pass instead of interrupting the review one by one.
 
-**STOP.** Do NOT proceed to the next review section, edit the plan file with the proposed fix, or call ExitPlanMode until the user responds. An issue with an "obvious fix" is still an issue and still needs explicit user approval before it lands in the plan. Loading the AskUserQuestion schema via ToolSearch and then writing the recommendation as chat prose is the failure mode this gate exists to prevent.
+**STOP for P0/P1/P2 plan-changing issues.** Do NOT proceed to the next review section, edit the plan file with the proposed fix, or call ExitPlanMode until the user responds. An issue with an "obvious fix" still needs explicit user approval before it lands in the plan when it changes scope, architecture, behavior, tests, security posture, performance posture, or release risk. Loading the AskUserQuestion schema via ToolSearch and then writing the recommendation as chat prose is the failure mode this gate exists to prevent.
 
 ### 4. Performance review
 Evaluate:
@@ -1233,9 +1245,9 @@ Evaluate:
 * Caching opportunities.
 * Slow or high-complexity code paths.
 
-For each issue found in this section, call AskUserQuestion individually. One issue per call. Present options, state your recommendation, explain WHY. Do NOT batch multiple issues into one AskUserQuestion. Use the preamble's AskUserQuestion Format section. The AskUserQuestion call is a tool_use, not prose — call the tool directly.
+For each P0/P1/P2 issue that changes the plan, call AskUserQuestion individually. One issue per call. Present options, state your recommendation, explain WHY. Do NOT batch multiple issues into one AskUserQuestion. Use the preamble's AskUserQuestion Format section. The AskUserQuestion call is a tool_use, not prose — call the tool directly. P3/TODO-level findings are recorded for the section summary/TODO pass instead of interrupting the review one by one.
 
-**STOP.** Do NOT proceed to the next review section, edit the plan file with the proposed fix, or call ExitPlanMode until the user responds. An issue with an "obvious fix" is still an issue and still needs explicit user approval before it lands in the plan. Loading the AskUserQuestion schema via ToolSearch and then writing the recommendation as chat prose is the failure mode this gate exists to prevent.
+**STOP for P0/P1/P2 plan-changing issues.** Do NOT proceed to the next review section, edit the plan file with the proposed fix, or call ExitPlanMode until the user responds. An issue with an "obvious fix" still needs explicit user approval before it lands in the plan when it changes scope, architecture, behavior, tests, security posture, performance posture, or release risk. Loading the AskUserQuestion schema via ToolSearch and then writing the recommendation as chat prose is the failure mode this gate exists to prevent.
 
 ## Outside Voice — Independent Plan Challenge (optional, recommended)
 
@@ -1383,14 +1395,14 @@ such — but the user makes the decision.
 
 ## CRITICAL RULE — How to ask questions
 Follow the AskUserQuestion format from the Preamble above. Additional rules for plan reviews:
-* **One issue = one AskUserQuestion call.** Never combine multiple issues into one question.
+* **One P0/P1/P2 plan-changing issue = one AskUserQuestion call.** Never combine multiple major issues into one question.
 * Describe the problem concretely, with file and line references.
 * Present 2-3 options, including "do nothing" where that's reasonable.
 * For each option, specify in one line: effort (human: ~X / CC: ~Y), risk, and maintenance burden. If the complete option is only marginally more effort than the shortcut with CC, recommend the complete option.
 * **Map the reasoning to my engineering preferences above.** One sentence connecting your recommendation to a specific preference (DRY, explicit > clever, minimal diff, etc.).
 * Label with issue NUMBER + option LETTER (e.g., "3A", "3B").
 * **Coverage vs kind:** for every per-issue AskUserQuestion you raise in this review, decide whether the options differ in coverage or in kind. If coverage (e.g., more tests vs fewer, complete error handling vs happy-path-only, full edge-case coverage vs shortcut), include `Completeness: N/10` on each option. If kind (e.g., architectural choice between two different systems, posture-over-posture, A/B/C where each is a different kind of thing), skip the score and add one line: `Note: options differ in kind, not coverage — no completeness score.` Do NOT fabricate scores on kind-differentiated questions — filler scores are worse than no score.
-* **Zero findings:** if a section has zero findings, state "No issues, moving on" and proceed. Otherwise, use AskUserQuestion for each finding — a finding with an "obvious fix" is still a finding and still needs user approval before any change lands in the plan.
+* **Zero major findings:** if a section has zero P0/P1/P2 plan-changing findings, state "No major issues, moving on" and proceed while recording P3/TODO-level findings for the summary/TODO pass. Otherwise, use AskUserQuestion for each P0/P1/P2 plan-changing finding — an "obvious fix" still needs user approval before it lands in the plan when it changes scope, architecture, behavior, tests, security posture, performance posture, or release risk.
 
 ## Required outputs
 
@@ -1547,7 +1559,7 @@ Check the git log for this branch. If there are prior commits suggesting a previ
 * NUMBER issues (1, 2, 3...) and LETTERS for options (A, B, C...).
 * Label with NUMBER + LETTER (e.g., "3A", "3B").
 * One sentence max per option. Pick in under 5 seconds.
-* After each review section, pause and ask for feedback before moving on.
+* After each review section, pause only when a P0/P1/P2 decision is open. Otherwise summarize section findings tersely and continue.
 
 ## Review Log
 

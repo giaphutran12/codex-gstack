@@ -968,7 +968,19 @@ Map:
 
 ## Prerequisite Skill Offer
 
-When the design doc check above prints "No design doc found," offer the prerequisite
+When the design doc check above prints "No design doc found," first classify the task.
+
+Offer the prerequisite skill only when the work needs product direction, feature
+behavior definition, premise challenge, or scope framing. Skip the offer for obvious
+bugs, mechanical refactors, narrow implementation checks, CI failures, dependency
+bumps, or already-scoped tickets where the user is asking for execution/review rather
+than product thinking.
+
+If skipping, say one terse sentence such as: "No design doc found, but this is an
+obvious bug/mechanical review, so skipping /office-hours." Then proceed with standard
+review.
+
+If the work needs product direction or behavior definition, offer the prerequisite
 skill before proceeding.
 
 Say to the user via AskUserQuestion:
@@ -1360,7 +1372,7 @@ Pattern:
 
 **Anti-skip rule:** Never condense, abbreviate, or skip any review pass (1-8) regardless of plan type (strategy, spec, code, infra). Every pass in this skill exists for a reason. "This is a strategy doc so DX passes don't apply" is always wrong — DX gaps are where adoption breaks down. If a pass genuinely has zero findings, say "No issues found" and move on — but you must evaluate it.
 
-**Anti-shortcut clause:** The plan file is the OUTPUT of the interactive review, not a substitute for it. Writing every finding into one plan write and calling ExitPlanMode without firing AskUserQuestion is the precise failure mode of the May 2026 transcript bug — the model explored, found issues, and dumped them into a deliverable rather than walking the user through them. If you have ANY non-trivial finding in any review section, the path from finding to ExitPlanMode goes THROUGH AskUserQuestion. Zero findings in every section is the only path to ExitPlanMode that bypasses AskUserQuestion. If you find yourself wanting to write a plan with findings before asking, stop and call AskUserQuestion now — that's the bug, recognize it.
+**Anti-shortcut clause:** The plan file is the OUTPUT of the interactive review, not a substitute for it. Writing P0/P1/P2 plan-changing findings into one plan write and calling ExitPlanMode without firing AskUserQuestion is the precise failure mode of the May 2026 transcript bug — the model explored, found issues, and dumped them into a deliverable rather than walking the user through them. If you have any P0/P1/P2 finding that changes scope, architecture, behavior, tests, security posture, performance posture, or release risk, the path from finding to ExitPlanMode goes THROUGH AskUserQuestion. P3/TODO-level findings can wait for the section summary/TODO pass. If you find yourself wanting to write a plan with major findings before asking, stop and call AskUserQuestion now — that's the bug, recognize it.
 
 ## Prior Learnings
 

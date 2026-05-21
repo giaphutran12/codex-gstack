@@ -1,6 +1,85 @@
 import type { TemplateContext } from '../types';
 
 export function generateAskUserFormat(_ctx: TemplateContext): string {
+  if (_ctx.host === 'codex') {
+    return `## AskUserQuestion Format
+
+### Tool resolution (read first)
+
+In Codex, "AskUserQuestion" means a **Codex decision gate**:
+
+1. Prefer the native \`request_user_input\` tool when it appears in your tool list.
+2. If a host MCP question tool appears, prefer that host tool.
+3. If no question tool is callable and this is a mandatory STOP gate, stop and report
+   \`BLOCKED — Codex decision gate unavailable\`.
+
+Do not claim \`AskUserQuestion unavailable\` merely because the Claude Code tool is
+absent. Codex does not expose Claude's native AskUserQuestion tool; use the Codex
+decision gate above.
+
+### Format
+
+Every decision gate is a decision brief and should be sent as tool_use when a
+question tool is callable.
+
+\`\`\`
+D<N> — <one-line question title>
+Project/branch/task: <1 short grounding sentence using _BRANCH>
+ELI10: <plain English a 16-year-old could follow, 2-4 sentences, name the stakes>
+Stakes if we pick wrong: <one sentence on what breaks, what user sees, what's lost>
+Recommendation: <choice> because <one-line reason>
+Completeness: A=X/10, B=Y/10   (or: Note: options differ in kind, not coverage — no completeness score)
+Pros / cons:
+A) <option label> (recommended)
+  ✅ <pro — concrete, observable, ≥40 chars>
+  ❌ <con — honest, ≥40 chars>
+B) <option label>
+  ✅ <pro>
+  ❌ <con>
+Net: <one-line synthesis of what you're actually trading off>
+\`\`\`
+
+D-numbering: first question in a skill invocation is \`D1\`; increment yourself. This is a model-level instruction, not a runtime counter.
+
+ELI10 is always present, in plain English, not function names. Recommendation is ALWAYS present. Keep the \`(recommended)\` label; AUTO_DECIDE depends on it.
+
+Completeness: use \`Completeness: N/10\` only when options differ in coverage. 10 = complete, 7 = happy path, 3 = shortcut. If options differ in kind, write: \`Note: options differ in kind, not coverage — no completeness score.\`
+
+Pros / cons: use ✅ and ❌. Minimum 2 pros and 1 con per option when the choice is real; Minimum 40 characters per bullet. Hard-stop escape for one-way/destructive confirmations: \`✅ No cons — this is a hard-stop choice\`.
+
+Neutral posture: \`Recommendation: <default> — this is a taste call, no strong preference either way\`; \`(recommended)\` STAYS on the default option for AUTO_DECIDE.
+
+Effort both-scales: when an option involves effort, label both human-team and CC+gstack time, e.g. \`(human: ~2 days / CC: ~15 min)\`. Makes AI compression visible at decision time.
+
+Net line closes the tradeoff. Per-skill instructions may add stricter rules.
+
+12. **Non-ASCII characters — write directly, never \\u-escape.** When any
+    string field (question, option label, option description) contains
+    Chinese (繁體/簡體), Japanese, Korean, or other non-ASCII text, emit
+    the literal UTF-8 characters in the JSON string. **Never escape them
+    as \`\\uXXXX\`.**
+
+    Wrong: \`"question": "請選擇\\uXXXX\\uXXXX\\uXXXX\\uXXXX"\`
+    Right: \`"question": "請選擇管理工具"\`
+
+    Only JSON-mandatory escapes remain allowed: \`\\n\`, \`\\t\`, \`\\"\`, \`\\\\\`.
+
+### Self-check before emitting
+
+Before calling a Codex decision gate, verify:
+- [ ] D<N> header present
+- [ ] ELI10 paragraph present (stakes line too)
+- [ ] Recommendation line present with concrete reason
+- [ ] Completeness scored (coverage) OR kind-note present (kind)
+- [ ] Every option has ≥2 ✅ and ≥1 ❌, each ≥40 chars (or hard-stop escape)
+- [ ] (recommended) label on one option (even for neutral-posture)
+- [ ] Dual-scale effort labels on effort-bearing options (human / CC)
+- [ ] Net line closes the decision
+- [ ] You are using \`request_user_input\` or a host question tool when callable
+- [ ] Non-ASCII characters (CJK / accents) written directly, NOT \\u-escaped
+`;
+  }
+
   return `## AskUserQuestion Format
 
 ### Tool resolution (read first)

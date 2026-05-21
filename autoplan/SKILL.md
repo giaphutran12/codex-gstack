@@ -828,7 +828,19 @@ branch name wherever the instructions say "the base branch" or `<default>`.
 
 ## Prerequisite Skill Offer
 
-When the design doc check above prints "No design doc found," offer the prerequisite
+When the design doc check above prints "No design doc found," first classify the task.
+
+Offer the prerequisite skill only when the work needs product direction, feature
+behavior definition, premise challenge, or scope framing. Skip the offer for obvious
+bugs, mechanical refactors, narrow implementation checks, CI failures, dependency
+bumps, or already-scoped tickets where the user is asking for execution/review rather
+than product thinking.
+
+If skipping, say one terse sentence such as: "No design doc found, but this is an
+obvious bug/mechanical review, so skipping /office-hours." Then proceed with standard
+review.
+
+If the work needs product direction or behavior definition, offer the prerequisite
 skill before proceeding.
 
 Say to the user via AskUserQuestion:

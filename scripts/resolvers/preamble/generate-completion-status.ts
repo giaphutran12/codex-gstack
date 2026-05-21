@@ -19,7 +19,17 @@ import type { TemplateContext } from '../types';
  * gates. See ceo-plan 2026-04-24 "remove vestigial plan-mode handshake" for
  * the full rationale.
  */
-export function generatePlanModeInfo(_ctx: TemplateContext): string {
+export function generatePlanModeInfo(ctx: TemplateContext): string {
+  if (ctx.host === 'codex') {
+    return `## Plan Mode Safe Operations
+
+In plan mode, allowed because they inform the plan: \`$B\`, \`$D\`, spawned Codex subagents/outside-review tools, writes to \`~/.gstack/\`, writes to the plan file, and \`open\` for generated artifacts.
+
+## Skill Invocation During Plan Mode
+
+If the user invokes a skill in plan mode, the skill takes precedence over generic plan mode behavior. **Treat the skill file as executable instructions, not reference.** Follow it step by step starting from Step 0; the first Codex decision gate is the workflow entering plan mode, not a violation of it. A Codex decision gate (\`request_user_input\` or host question tool; see "AskUserQuestion Format → Tool resolution") satisfies plan mode's end-of-turn requirement. If no decision gate is callable, the skill is BLOCKED — stop and report \`BLOCKED — Codex decision gate unavailable\` per the AskUserQuestion Format rule. At a STOP point, stop immediately. Do not continue the workflow or call ExitPlanMode there. Commands marked "PLAN MODE EXCEPTION — ALWAYS RUN" execute. Call ExitPlanMode only after the skill workflow completes, or if the user tells you to cancel the skill or leave plan mode.`;
+  }
+
   return `## Plan Mode Safe Operations
 
 In plan mode, allowed because they inform the plan: \`$B\`, \`$D\`, \`codex exec\`/\`codex review\`, writes to \`~/.gstack/\`, writes to the plan file, and \`open\` for generated artifacts.

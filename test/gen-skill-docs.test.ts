@@ -718,7 +718,6 @@ describe('TEST_COVERAGE_AUDIT placeholders', () => {
     // Review mode delegates test coverage to the Testing specialist subagent (Review Army)
     const sharedPhrases = [
       'Trace data flow',
-      'Diagram the execution',
       'Quality scoring rubric',
       '★★★',
       '★★',
@@ -728,11 +727,13 @@ describe('TEST_COVERAGE_AUDIT placeholders', () => {
       expect(planSkill).toContain(phrase);
       expect(shipSkill).toContain(phrase);
     }
-    // Plan mode traces the plan, not a git diff
-    expect(planSkill).toContain('Trace every codepath in the plan');
+    // Plan mode builds an expected matrix, not fake branch proof from code that does not exist yet.
+    expect(planSkill).toContain('Build the expected path/test matrix from the plan');
+    expect(planSkill).toContain('Diagram the expected execution');
     expect(planSkill).not.toContain('git diff origin');
     // Ship mode traces the diff
     expect(shipSkill).toContain('Trace every codepath changed');
+    expect(shipSkill).toContain('Diagram the execution');
   });
 
   test('review mode uses Review Army for specialist dispatch', () => {
@@ -1820,14 +1821,14 @@ describe('Codex generation (--host codex)', () => {
     expect(content).not.toContain('~/.codex/skills/gstack/bin/gstack-config get telemetry');
   });
 
-  test('Codex host defaults every generated skill to the GPT/Codex runtime patches', () => {
+  test('Codex host defaults every generated skill to the GPT-5.5/Codex runtime patches', () => {
     for (const skill of CODEX_SKILLS) {
       const content = fs.readFileSync(path.join(AGENTS_DIR, skill.codexName, 'SKILL.md'), 'utf-8');
-      expect(content).toContain('Model-Specific Behavioral Patch (gpt-5.4)');
+      expect(content).toContain('Model-Specific Behavioral Patch (gpt-5.5)');
       expect(content).toContain('Host Runtime Patch (OpenAI Codex CLI)');
       expect(content).toContain('Codex tool mapping');
       if (content.includes('MODEL_OVERLAY:')) {
-        expect(content).toContain('MODEL_OVERLAY: gpt-5.4');
+        expect(content).toContain('MODEL_OVERLAY: gpt-5.5');
       }
       expect(content).not.toContain('MODEL_OVERLAY: claude');
       expect(content).not.toContain('Model-Specific Behavioral Patch (claude)');
@@ -1843,6 +1844,39 @@ describe('Codex generation (--host codex)', () => {
       expect(content).not.toContain('via the Agent tool');
       expect(content).not.toContain('Use the Agent tool');
     }
+  });
+
+  test('Codex plan-eng-review uses Codex-native decision gates', () => {
+    const content = fs.readFileSync(path.join(AGENTS_DIR, 'gstack-plan-eng-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Codex decision gate');
+    expect(content).toContain('request_user_input');
+    expect(content).toContain('BLOCKED — Codex decision gate unavailable');
+    expect(content).not.toContain('BLOCKED — AskUserQuestion unavailable');
+  });
+
+  test('Codex plan-eng-review keeps outside voice without self-invoking codex exec', () => {
+    const content = fs.readFileSync(path.join(AGENTS_DIR, 'gstack-plan-eng-review', 'SKILL.md'), 'utf-8');
+    const outsideVoice = extractMarkdownSection(content, '## Outside Voice');
+    expect(outsideVoice).toContain('Codex-native');
+    expect(outsideVoice).toContain('Codex subagent');
+    expect(outsideVoice).toContain('inline fallback');
+    expect(outsideVoice).toContain('SOURCE = "codex-subagent"');
+    expect(outsideVoice).not.toContain('codex exec');
+  });
+
+  test('plan-stage eng review produces expected test matrix, not fake branch proof', () => {
+    const content = fs.readFileSync(path.join(AGENTS_DIR, 'gstack-plan-eng-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('expected path/test matrix');
+    expect(content).toContain('Do not invent exact filenames, functions, or branch coverage before code exists');
+    expect(content).toContain('reserve VERIFIED branch claims for diff-stage review');
+    expect(content).not.toContain('Trace every codepath in the plan');
+  });
+
+  test('plan-eng-review only offers office-hours for product direction or behavior ambiguity', () => {
+    const content = fs.readFileSync(path.join(AGENTS_DIR, 'gstack-plan-eng-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Offer the prerequisite skill only when the work needs product direction');
+    expect(content).toContain('Skip the offer for obvious');
+    expect(content).toContain('bugs, mechanical refactors');
   });
 
   // ─── Path rewriting regression tests ─────────────────────────
