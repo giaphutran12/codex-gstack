@@ -773,7 +773,7 @@ function processExternalHost(
   }
 
   // Config-driven: generate metadata (e.g., openai.yaml for Codex)
-  if (hostConfig.generation.generateMetadata && !symlinkLoop) {
+  if (hostConfig.generation.generateMetadata && !symlinkLoop && !DRY_RUN) {
     const agentsDir = path.join(outputDir, 'agents');
     fs.mkdirSync(agentsDir, { recursive: true });
     const shortDescription = condenseOpenAIShortDescription(extractedDescription);

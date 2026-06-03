@@ -1877,13 +1877,15 @@ describe('Codex generation (--host codex)', () => {
   });
 
   test('Codex host defaults every generated skill to the GPT/Codex runtime patches', () => {
+    const defaultCodexModel = getHostConfig('codex').defaultModel;
+    expect(defaultCodexModel).toBeTruthy();
     for (const skill of CODEX_SKILLS) {
       const content = fs.readFileSync(path.join(AGENTS_DIR, skill.codexName, 'SKILL.md'), 'utf-8');
-      expect(content).toContain('Model-Specific Behavioral Patch (gpt-5.4)');
+      expect(content).toContain(`Model-Specific Behavioral Patch (${defaultCodexModel})`);
       expect(content).toContain('Host Runtime Patch (OpenAI Codex CLI)');
       expect(content).toContain('Codex tool mapping');
       if (content.includes('MODEL_OVERLAY:')) {
-        expect(content).toContain('MODEL_OVERLAY: gpt-5.4');
+        expect(content).toContain(`MODEL_OVERLAY: ${defaultCodexModel}`);
       }
       expect(content).not.toContain('MODEL_OVERLAY: claude');
       expect(content).not.toContain('Model-Specific Behavioral Patch (claude)');
