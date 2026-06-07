@@ -1791,6 +1791,12 @@ describe('Codex generation (--host codex)', () => {
     const designConsultation = fs.readFileSync(path.join(AGENTS_DIR, 'gstack-design-consultation', 'SKILL.md'), 'utf-8');
     expect(designConsultation).toContain('$GSTACK_ROOT/design-consultation/SKILL.md');
 
+    const designHtml = fs.readFileSync(path.join(AGENTS_DIR, 'gstack-design-html', 'SKILL.md'), 'utf-8');
+    expect(designHtml).toContain('$GSTACK_ROOT/design-html/SKILL.md');
+
+    const designShotgun = fs.readFileSync(path.join(AGENTS_DIR, 'gstack-design-shotgun', 'SKILL.md'), 'utf-8');
+    expect(designShotgun).toContain('$GSTACK_ROOT/design-shotgun/SKILL.md');
+
     const officeHours = fs.readFileSync(path.join(AGENTS_DIR, 'gstack-office-hours', 'SKILL.md'), 'utf-8');
     expect(officeHours).toContain('$GSTACK_ROOT/office-hours/SKILL.md');
   });

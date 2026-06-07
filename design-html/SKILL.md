@@ -739,6 +739,21 @@ approximations. Computed layout via Pretext. Text reflows on resize, heights adj
 to content, cards size themselves, chat bubbles shrinkwrap, editorial spreads flow
 around obstacles.
 
+## Full-Skill Design HTML Agents
+
+Whenever this skill dispatches any reviewer, verifier, Codex-style agent, or
+implementation subagent, the prompt MUST instruct that agent to first read the full
+skill file at `$GSTACK_ROOT/design-html/SKILL.md`.
+
+Use this prefix:
+
+> IMPORTANT: First read the full design-html skill file at `$GSTACK_ROOT/design-html/SKILL.md`. Do NOT read or execute any other SKILL.md files or skill definition directories. Stay focused on this named skill, the design brief, generated HTML, and repository code only.
+
+This prevents shallow implementation prompts and guarantees agents use the full
+design-html methodology.
+
+---
+
 ## DESIGN SETUP (run this check BEFORE any design mockup command)
 
 ```bash
